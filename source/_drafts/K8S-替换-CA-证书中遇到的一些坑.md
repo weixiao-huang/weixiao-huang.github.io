@@ -107,4 +107,4 @@ kubectl get secret --field-selector type=kubernetes.io/service-account-token -A 
 kubectl -n kube-system get secret --field-selector type=kubernetes.io/service-account-token
 ```
 
-可以看到有一堆 token
+可以看到有一堆 token ，然后需要把这些 token 都删掉，删掉之后会重新生成他们
