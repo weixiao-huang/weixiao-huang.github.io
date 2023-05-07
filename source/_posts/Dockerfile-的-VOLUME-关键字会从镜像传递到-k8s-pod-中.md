@@ -1,7 +1,8 @@
 ---
 title: Dockerfile 的 VOLUME 关键字会从镜像传递到 k8s pod 中
 date: 2023-01-27 13:04:38
-tags:
+tags: container
+categories: Container
 ---
 
 在书写 `Dockerfile` 的时候，会存在一个 `VOLUME` 的关键字，例如

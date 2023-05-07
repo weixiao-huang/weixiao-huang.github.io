@@ -1,6 +1,8 @@
 ---
 title: "利用老版本 containerd 自带的 ctr 命令进行镜像 tag 操作"
 date: 2022-03-05T10:36:12+08:00
+tags: container
+categories: Container
 ---
 
 # 一、起因

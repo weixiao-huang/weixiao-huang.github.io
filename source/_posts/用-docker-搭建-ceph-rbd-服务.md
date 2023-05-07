@@ -1,7 +1,8 @@
 ---
 title: 用 docker 搭建 ceph rbd 服务
 date: 2019-09-01 09:32:17
-tags:
+tags: container
+categories: Container
 ---
 
 # 0. 安装 docker 和 docker-compose

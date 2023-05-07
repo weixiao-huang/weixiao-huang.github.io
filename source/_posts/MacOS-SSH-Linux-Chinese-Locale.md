@@ -1,6 +1,8 @@
 ---
 title: "记一次 MacOS SSH Linux 之后出现中文乱码"
 date: 2022-01-11T22:44:39+08:00
+tags: development
+categories: Development
 ---
 
 # 一、起因

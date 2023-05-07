@@ -1,7 +1,8 @@
 ---
 title: 浅谈 bazel 开发大型 go project 的优劣
 date: 2020-04-25 22:22:11
-tags:
+tags: development
+categories: Development
 ---
 
 [Bazel](https://bazel.build/) 是 Google 开发的一款跨平台编译工具，是内部 blaze 的开源版本。本文不探讨 bazel 的使用，如果想了解如何用 Bazel 构建 go project，可以参考 [这篇文章](https://www.qtmuniao.com/2019/12/07/bazel-build-golang/)。本文主要探讨 Bazel 开发 go project 和纯使用 go modules 开发会有哪些优劣比较，我们如何去同时利用二者的优劣。

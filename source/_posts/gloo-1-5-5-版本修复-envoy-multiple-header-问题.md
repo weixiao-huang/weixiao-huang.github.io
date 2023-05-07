@@ -1,7 +1,8 @@
 ---
 title: gloo 1.5.5 版本修复 envoy multiple header 问题
 date: 2021-07-21 00:02:58
-tags:
+tags: gateway
+categories: Gateway
 ---
 
 # 问题背景

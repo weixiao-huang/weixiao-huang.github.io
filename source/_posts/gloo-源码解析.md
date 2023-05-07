@@ -1,7 +1,8 @@
 ---
 title: gloo 源码解析
 date: 2023-05-07 11:03:30
-tags:
+tags: gateway
+categories: Gateway
 ---
 
 [gloo](https://github.com/solo-io/gloo) 是一款基于 envoy 的云原生的API网关，它能够非常方便的和 K8S 进行集成，通过监听相关的 CRD，基于 envoy 的 [xDS](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol) 接口对 envoy 配置进行 hot reload。同时也能[很方便的集成 knative](https://docs.solo.io/gloo-edge/1.7.23/installation/knative/)。另外它的文档也比较完善，设计比较简单，易于上手。

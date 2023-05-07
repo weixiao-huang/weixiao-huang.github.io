@@ -1,7 +1,8 @@
 ---
 title: envoy 网关实现优雅退出
 date: 2023-03-07 16:30:33
-tags:
+tags: gateway
+categories: Gateway
 ---
 
 在我们的项目中，我们采用了 [gloo](https://github.com/solo-io/gloo) 作为我们最前端的网关，gloo 是基于 envoy 的云原生网关， gloo 实现了一套控制器，自定义了 `VirtualService`, `RouteTable`, `Upstream` 等 CRD，利用 envoy 的 [xDS](https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol) ，将 K8S 的 CRD 转化为了 envoy 自身的配置实现反向代理。

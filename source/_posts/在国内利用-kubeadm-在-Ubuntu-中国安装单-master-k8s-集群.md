@@ -1,7 +1,8 @@
 ---
 title: 在国内利用 kubeadm 在 Ubuntu 中安装单 master k8s 集群
 date: 2019-08-31 15:26:29
-tags:
+tags: kubernetes
+categories: Kubernetes
 ---
 
 本文主要参考 Kubernetes 官方文档 [Creating a single control-plane cluster with kubeadm (v1.16)](https://v1-16.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)，但由于国内实在是访问 Google 困难，之前的教程都是从国内各种镜像中拉取 k8s 镜像，再 tag 成官方的，实在是不太优雅。好在 K8S 新版支持了指定镜像源，可以方便的指定国内源。

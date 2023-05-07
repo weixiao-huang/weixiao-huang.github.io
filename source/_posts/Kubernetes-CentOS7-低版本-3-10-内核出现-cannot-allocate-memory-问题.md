@@ -1,7 +1,8 @@
 ---
 title: Kubernetes CentOS 7 低版本 3.10 内核出现 cannot allocate memory 问题
 date: 2023-03-09 17:05:21
-tags:
+tags: kubernetes
+categories: Kubernetes
 ---
 
 在标准的 CentOS 7 系统中，标配的是 3.10 版本的 Linux kernel，在这个内核下搭建 Kubernetes 一版来说还是比较稳定的，但是当集群跑着跑着，创建的 Pod 多于一定数量的时候，就会发现新 Pod 再也创建不起来了，报错
