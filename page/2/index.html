@@ -175,6 +175,115 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/" class="post-title-link" itemprop="url">浅谈 bazel 开发大型 go project 的优劣</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-04-25 22:22:11" itemprop="dateCreated datePublished" datetime="2020-04-25T22:22:11+00:00">2020-04-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-12-03 03:27:06" itemprop="dateModified" datetime="2023-12-03T03:27:06+00:00">2023-12-03</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Development/" itemprop="url" rel="index">
+                    <span itemprop="name">Development</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p><a target="_blank" rel="noopener" href="https://bazel.build/">Bazel</a> 是 Google 开发的一款跨平台编译工具，是内部 blaze 的开源版本。本文不探讨 bazel 的使用，如果想了解如何用 Bazel 构建 go project，可以参考 <a target="_blank" rel="noopener" href="https://www.qtmuniao.com/2019/12/07/bazel-build-golang/">这篇文章</a>。本文主要探讨 Bazel 开发 go project 和纯使用 go modules 开发会有哪些优劣比较，我们如何去同时利用二者的优劣。</p>
+<h1 id="1-bazel-开发的优势"><a class="markdownIt-Anchor" href="#1-bazel-开发的优势"></a> 1. Bazel 开发的优势</h1>
+<h2 id="11-多语言支持"><a class="markdownIt-Anchor" href="#11-多语言支持"></a> 1.1. 多语言支持</h2>
+<p>利用 Bazel 开发的 go project 能够支持非常好的可扩展性，对多语言的支持也比较友好，如果是一个公司内部的大项目，希望统一风格，统一 CI，统一构建，那么会存在这种状况：以 go 语言为主，其他语言为辅助。举一个例子，如果你的项目中包含了前端，那么 Bazel 的多语言处理就可以非常方便的让你同时编译 go project 和 frontend project。同理，如果你的项目中有 C++ 等其他语言也可以类似的用 Bazel 统一处理。这样在 monorepo 的管理上会方便很多。</p>
+<h2 id="12-便于复用缓存和其他-bazel-的功能"><a class="markdownIt-Anchor" href="#12-便于复用缓存和其他-bazel-的功能"></a> 1.2. 便于复用缓存和其他 bazel 的功能</h2>
+<p>bazel 自身是支持 remote cache 和 remote executor，个人认为 remote cache 功能是比较易用的一个功能。假如我们在 CI 中编译 go 项目，其实很难做到 go remote cache，基本上每次都得重新编译，但是 bazel 可以通过搭建 remote cache 服务重用缓存，极大的加大编译的速度。</p>
+<p>另外，如果机器比较多，也可以使用 bazel 的 remote executor 服务搭建代码执行集群，让远端来跑 bazel 代码，这样也可以加速 go 的构建。不过实践下来一般 remote executor 可能不会比 remote executor 加速太多，除非专门对 build cluster 做过优化。</p>
+<h2 id="13-镜像打包便捷而可复现"><a class="markdownIt-Anchor" href="#13-镜像打包便捷而可复现"></a> 1.3. 镜像打包便捷而可复现</h2>
+<p>如果是一个 go modules 项目，那么镜像打包我可能就得写这么一个 <code>Dockerfile</code></p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.14</span>.<span class="number">2</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ENV</span> GOPATH=/go</span><br><span class="line"><span class="keyword">ENV</span> GOPROXY=https://goproxy.cn,direct</span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> . /go/src/my.project</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="language-bash"> /go/src/my.project</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> go build -o main ./</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">FROM</span> busybox</span><br><span class="line"></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --from=0 /go/src/my.project/main /usr/local/bin</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">CMD</span><span class="language-bash"> [<span class="string">&quot;main&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+<p>可以看到，这个 <code>Dockerfile</code> 的问题在于，在 ci 上每次编译都会导致重新编译，不会有任何的缓存，这就回到了上一个问题——无法复用缓存。</p>
+<p>但是如果使用 Bazel，我们就可以使用 Bazel rules_docker 的 <code>container_image</code> 和 <code>container_push</code> 方法，实现镜像的打包和上传。而且 rules_docker 本身是不需要有 docker 环境的，<strong>因此我们的 ci 甚至不用装 docker，只需要一个 bazel 就行了</strong>。</p>
+<h2 id="14-第三方包引用和更改比较方便"><a class="markdownIt-Anchor" href="#14-第三方包引用和更改比较方便"></a> 1.4. 第三方包引用和更改比较方便</h2>
+<p>我自己并不是一个 go modules 深度用户，所以假如我们引用了一个第三方包，要对第三方包打 patch，就会比较麻烦，当然可以说，我们可以使用 vendor，但这并不符合 go modules 的哲学，那这样其实就会比较麻烦。</p>
+<p>bazel 利用 gazelle 把所有第三方包显式的声明在 WORKSPACE 中，如果需要改动，只需给这个包加上 <code>.patch</code> 文件的 patch 即可实现更改，这样其实比起 vendor 来说更改也更容易被记录。</p>
+<h1 id="2-bazel-开发相较于-go-modules-的劣势"><a class="markdownIt-Anchor" href="#2-bazel-开发相较于-go-modules-的劣势"></a> 2. Bazel 开发相较于 go modules 的劣势</h1>
+<h2 id="21-ide-提示没有-go-modules-友好"><a class="markdownIt-Anchor" href="#21-ide-提示没有-go-modules-友好"></a> 2.1 IDE 提示没有 go modules 友好</h2>
+<p>众所周知，go modules 很多 IDE 有非常好的支持，例如 vscode 和 goland，对于跳转等待支持得也非常好。但是 Bazel 就难办了，目前我尝试下来，只有 goland（或者 Jetbrains 系列） 的 bazel 插件是比较完善的，跳转基本能支持。</p>
+<p>另一个方面，由于 Bazel 的尿性，每次本地执行 bazel build 会删除某些不必要的执行结果，因此可能会导致本地自己执行 bazel build 等指令之后，需要在 goland 中重新 sync 一下，这样会造成一些时间成本。</p>
+<h2 id="22-bazel-依赖管理错乱"><a class="markdownIt-Anchor" href="#22-bazel-依赖管理错乱"></a> 2.2 Bazel 依赖管理错乱</h2>
+<p>go modules 有自己一套依赖管理，但是 Bazel 的依赖，很多时候可能都是无脑 gazelle update 添加依赖，不会考虑依赖之间的版本关系，因此会导致 Bazel 项目中的版本依赖很错乱。</p>
+<h2 id="23-一些-go-modules-相关的工具无法支持"><a class="markdownIt-Anchor" href="#23-一些-go-modules-相关的工具无法支持"></a> 2.3 一些 go modules 相关的工具无法支持</h2>
+<p>一个例子就是 <a target="_blank" rel="noopener" href="https://github.com/golangci/golangci-lint">golangci-lint</a> 这个包。这个东西是不支持 Bazel 的，因此只有 go modules 项目可以支持。</p>
+<h2 id="24-有一定的学习成本"><a class="markdownIt-Anchor" href="#24-有一定的学习成本"></a> 2.4 有一定的学习成本</h2>
+<p>对于团队中的同学来说，如何使用 Bazel，如何添加依赖，是有一定的学习成本的。</p>
+<h1 id="3-同时支持-bazel-和-go-modules"><a class="markdownIt-Anchor" href="#3-同时支持-bazel-和-go-modules"></a> 3. 同时支持 Bazel 和 go modules</h1>
+<p>可以看到二者有他的优劣，我们能否合并二者，取长补短，发挥二者的优势呢？答案是肯定的。</p>
+<p>我们可以以 bazel 为主，go modules 为辅。以下针对上面说的 Bazel 3 个劣势来说明如何解决。</p>
+<p>对于第一个劣势，虽然我个人觉得 goland 的 Bazel 插件其实还行，但是如果实在不能忍受，可以直接使用我们提供的 go.mod 来基于 go modules 开发。</p>
+<p>对于第二个劣势，鉴于 bazel-gazelle 的 <code>update</code> 命令有 <code>--from-file=go.mod</code> flag，使得我们可以从 go.mod 中生成 Bazel 版本依赖，这样就可以保证 Bazel 的依赖管理和 go modules 的依赖管理是一致的，不会使得依赖管理错乱，解决了上面的第二个问题。这个技巧在 k8s <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra/blob/v0.0.3/hack/update-deps.sh">repo-infra 的 update-deps.sh</a> 中有使用。</p>
+<p>对于第三个劣势，我们可以书写一些 Bazel 脚本，在 Bazel 的沙箱中使用 go modules 模式来使用 golangci-lint，这个方式在 k8s <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra/blob/v0.0.3/hack/verify-golangci-lint.sh">repo-infra 的 verify-golangci-lint.sh</a> 中有使用。</p>
+<p>对于第四个劣势，就要求项目维护者提供详尽的文档说明，如何 update 依赖，如何处理 Bazel 的一些问题，如何优化项目结构。当然我认为这并不是太大的问题，因为对于一个大项目来说，规范是必须的。</p>
+<p>另外，k8s 有使用 Bazel 来构建 go projects，他们也采用的是 go modules 和 Bazel 同时支持的方案来实现。这样对于开发者也非常友好，同时对于大项目的管理、构建和测试也非常的友好。</p>
+<p>由此，我书写了一个 <a target="_blank" rel="noopener" href="https://github.com/weixiao-huang/bazel-go-scaffold.git">bazel-go-scaffold</a>，基于 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra.git">repo-infra</a> 扩展了一个基于 Bazel 的 go 大项目模板，供大家参考</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="en">
     <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2019/09/03/%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%80%E4%B8%AA%E6%AF%94%E8%BE%83%E8%88%92%E9%80%82%E7%9A%84%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -231,7 +340,8 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h2 id="初始化-fish-和-tmux-配置"><a href="#初始化-fish-和-tmux-配置" class="headerlink" title="初始化 fish 和 tmux 配置"></a>初始化 fish 和 tmux 配置</h2><p>一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。</p>
+          <h2 id="初始化-fish-和-tmux-配置"><a class="markdownIt-Anchor" href="#初始化-fish-和-tmux-配置"></a> 初始化 fish 和 tmux 配置</h2>
+<p>一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。</p>
 <p>下面我就分享一下我的开机配置方案：</p>
 <ul>
 <li>fish 并设置默认终端</li>
@@ -239,14 +349,12 @@
 </ul>
 <p>脚本如下：</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># install software-properties-common</span></span><br><span class="line">sudo apt-get update -y &amp;&amp; \</span><br><span class="line">sudo apt install -y software-properties-common</span><br><span class="line"></span><br><span class="line"><span class="comment"># install fish</span></span><br><span class="line">sudo apt-add-repository -y ppa:fish-shell/release-3 &amp;&amp; \</span><br><span class="line">sudo apt-get update -y &amp;&amp; \</span><br><span class="line">sudo apt-get install -y fish &amp;&amp; \</span><br><span class="line">sudo <span class="built_in">rm</span> /etc/apt/sources.list.d/fish-shell-*</span><br><span class="line"></span><br><span class="line"><span class="comment"># use fish as default shell</span></span><br><span class="line"><span class="built_in">command</span> -v fish | sudo <span class="built_in">tee</span> -a /etc/shells</span><br><span class="line">sudo chsh -s <span class="string">&quot;<span class="subst">$(command -v fish)</span>&quot;</span> <span class="string">&quot;<span class="variable">$&#123;USER&#125;</span>&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># install tmux and tmux config</span></span><br><span class="line">sudo apt update -y &amp;&amp; sudo apt install tmux</span><br><span class="line"><span class="built_in">cd</span> &amp;&amp; git <span class="built_in">clone</span> https://github.com/gpakosz/.tmux.git &amp;&amp; \</span><br><span class="line"><span class="built_in">ln</span> -s -f .tmux/.tmux.conf &amp;&amp; \</span><br><span class="line"><span class="built_in">cp</span> .tmux/.tmux.conf.local .</span><br></pre></td></tr></table></figure>
-
 <p>退出重新 ssh 服务器，或者重新打开终端，即可有一个非常爽 fish+tmux 环境</p>
-<h2 id="更改-tmux-conf-的-tmux-prefix-配置"><a href="#更改-tmux-conf-的-tmux-prefix-配置" class="headerlink" title="更改 .tmux.conf 的 tmux prefix 配置"></a>更改 .tmux.conf 的 tmux prefix 配置</h2><p>由于 <a target="_blank" rel="noopener" href="https://github.com/gpakosz/.tmux.git">https://github.com/gpakosz/.tmux.git</a> 的 .tmux 配置可以使用 C-b 也可以使用 C-a，但是作为 emacs 终端快捷键使用者，这两个键分别是左移和回到行首，不是很方便，我一般改成 C-x，更改方案是，进入 <code>~/.tmux.conf</code>，更改下述两行</p>
+<h2 id="更改-tmuxconf-的-tmux-prefix-配置"><a class="markdownIt-Anchor" href="#更改-tmuxconf-的-tmux-prefix-配置"></a> 更改 .tmux.conf 的 tmux prefix 配置</h2>
+<p>由于 <a target="_blank" rel="noopener" href="https://github.com/gpakosz/.tmux.git">https://github.com/gpakosz/.tmux.git</a> 的 .tmux 配置可以使用 C-b 也可以使用 C-a，但是作为 emacs 终端快捷键使用者，这两个键分别是左移和回到行首，不是很方便，我一般改成 C-x，更改方案是，进入 <code>~/.tmux.conf</code>，更改下述两行</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">set -g prefix2 C-a                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-a send-prefix -2</span><br></pre></td></tr></table></figure>
-
 <p>为</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">set -g prefix2 C-x                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-x send-prefix -2</span><br><span class="line">set -g prefix C-x                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-x send-prefix</span><br></pre></td></tr></table></figure>
-
 <p>即可。</p>
 
       
@@ -323,35 +431,29 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="0-安装-docker-和-docker-compose"><a href="#0-安装-docker-和-docker-compose" class="headerlink" title="0. 安装 docker 和 docker-compose"></a>0. 安装 docker 和 docker-compose</h1><p>安装 docker 请参考 </p>
+          <h1 id="0-安装-docker-和-docker-compose"><a class="markdownIt-Anchor" href="#0-安装-docker-和-docker-compose"></a> 0. 安装 docker 和 docker-compose</h1>
+<p>安装 docker 请参考</p>
 <a href="/2019/08/31/%E5%9C%A8%E5%9B%BD%E5%86%85%E5%88%A9%E7%94%A8-kubeadm-%E5%9C%A8-Ubuntu-%E4%B8%AD%E5%9B%BD%E5%AE%89%E8%A3%85%E5%8D%95-master-k8s-%E9%9B%86%E7%BE%A4/" title="安装 docker 和 k8s 相关命令行工具">安装 docker 和 k8s 相关命令行工具</a>
-
 <p>同时参考 <a target="_blank" rel="noopener" href="http://get.daocloud.io/#install-compose">daocloud 上的 docker-compose 安装文档</a>，可以使用下述语句安装 docker-compose：</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">curl -L https://get.daocloud.io/docker/compose/releases/download/1.24.1/docker-compose-`<span class="built_in">uname</span> -s`-`<span class="built_in">uname</span> -m` &gt; /tmp/docker-compose</span><br><span class="line"><span class="built_in">chmod</span> +x /tmp/docker-compose</span><br><span class="line">sudo <span class="built_in">mv</span> /tmp/docker-compose /usr/local/bin/docker-compose</span><br></pre></td></tr></table></figure>
-
-<h1 id="1-利用-docker-compose-部署单机单-osd-ceph"><a href="#1-利用-docker-compose-部署单机单-osd-ceph" class="headerlink" title="1. 利用 docker-compose 部署单机单 osd ceph"></a>1. 利用 docker-compose 部署单机单 osd ceph</h1><p>主要参考<a target="_blank" rel="noopener" href="https://hub.docker.com/r/ceph/daemon/">官方 docker 镜像文档</a>，但最新的 <code>ceph/daemon</code> 镜像似乎有点奇怪的 bug，导致 osd 起不来，因此，我们使用一个 2019年年初的镜像，已经 tag 成 <code>huangwx/ceph-daemon</code> 供使用。ceph 的 docker-compose 文件如下：</p>
+<h1 id="1-利用-docker-compose-部署单机单-osd-ceph"><a class="markdownIt-Anchor" href="#1-利用-docker-compose-部署单机单-osd-ceph"></a> 1. 利用 docker-compose 部署单机单 osd ceph</h1>
+<p>主要参考<a target="_blank" rel="noopener" href="https://hub.docker.com/r/ceph/daemon/">官方 docker 镜像文档</a>，但最新的 <code>ceph/daemon</code> 镜像似乎有点奇怪的 bug，导致 osd 起不来，因此，我们使用一个 2019年年初的镜像，已经 tag 成 <code>huangwx/ceph-daemon</code> 供使用。ceph 的 docker-compose 文件如下：</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># docker-compose-ceph.yaml</span></span><br><span class="line"><span class="attr">version:</span> <span class="string">&#x27;3.7&#x27;</span></span><br><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">ceph-mon:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-mon</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">mon</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">MON_IP=$&#123;MON_IP&#125;</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">CEPH_PUBLIC_NETWORK=$&#123;CEPH_PUBLIC_NETWORK&#125;</span></span><br><span class="line">  <span class="attr">ceph-mgr:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-mgr</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">mgr</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">ceph-mon</span></span><br><span class="line">  <span class="attr">ceph-osd:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-osd</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">osd</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">ceph-mgr</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">OSD_TYPE=directory</span></span><br><span class="line">    <span class="attr">pid:</span> <span class="string">host</span></span><br><span class="line"><span class="attr">volumes:</span></span><br><span class="line">  <span class="attr">cephdata:</span> &#123;&#125;</span><br><span class="line"><span class="attr">networks:</span></span><br><span class="line">  <span class="attr">default:</span></span><br><span class="line">    <span class="attr">external:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">host</span></span><br></pre></td></tr></table></figure>
-
 <p>在 <code>docker-compose-ceph.yaml</code> 的相同目录下新建一个 <code>ceph</code> 目录</p>
 <p>注意设置 <code>MON_IP</code> 和 <code>CEPH_PUBLIC_NETWORK</code> 两个环境变量，两个环境变量分别为主机 IP 地址，允许访问 ceph 的网段。下面仅作为演示，MON_IP 和 CEPH_PUBLIC_NETWORK 请设置成你自己的：</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">export MON_IP=192.168.2.2 CEPH_PUBLIC_NETWORK=192.168.0.0/16</span><br></pre></td></tr></table></figure>
-
 <p>同时请确认 <code>./ceph</code> 目录下没有任何 ceph 的配置文件，然后启动 ceph：</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker-compose -f docker-compose-ceph.yaml up -d</span><br></pre></td></tr></table></figure>
-
 <p>启动后会在 <code>./ceph</code> 目录下生成下述3个 ceph 配置文件：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ceph.client.admin.keyring</span><br><span class="line">ceph.conf</span><br><span class="line">ceph.mon.keyring</span><br></pre></td></tr></table></figure>
-
 <p>启动成功之后，稍等片刻，然后执行下述命令 check ceph 是否正常</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">$ docker exec -it ceph-mon ceph -s</span><br><span class="line">  cluster:</span><br><span class="line">    id:     e3cdecce-16f7-4c0f-9909-ab94a5e7c1b5</span><br><span class="line">    health: HEALTH_OK</span><br><span class="line"></span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum new</span><br><span class="line">    mgr: new(active)</span><br><span class="line">    osd: 1 osds: 1 up, 1 in</span><br><span class="line"></span><br><span class="line">  data:</span><br><span class="line">    pools:   0 pools, 0 pgs</span><br><span class="line">    objects: 0  objects, 0 B</span><br><span class="line">    usage:   2.9 GiB used, 1020 GiB / 1023 GiB avail</span><br><span class="line">    pgs:</span><br></pre></td></tr></table></figure>
-
 <p>如果成功看到类似上述的返回，即说明成功。</p>
-<h1 id="2-初始化-rbd-配置"><a href="#2-初始化-rbd-配置" class="headerlink" title="2. 初始化 rbd 配置"></a>2. 初始化 rbd 配置</h1><p>接下来初始化 rbd 配置。由于是单 osd 单 monitor 集群，因此我们需要创建并设置 rbd:</p>
+<h1 id="2-初始化-rbd-配置"><a class="markdownIt-Anchor" href="#2-初始化-rbd-配置"></a> 2. 初始化 rbd 配置</h1>
+<p>接下来初始化 rbd 配置。由于是单 osd 单 monitor 集群，因此我们需要创建并设置 rbd:</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool create rbd 64 64 replicated</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool application <span class="built_in">enable</span> rbd rbd</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon rbd pool init rbd</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool <span class="built_in">set</span> rbd size 1</span><br></pre></td></tr></table></figure>
-
 <p>即可成功初始化并设置 rbd，可以利用 <code>rbd ls</code> 命令 check 是否能够不卡住返回：</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker exec -it ceph-mon rbd ls</span><br></pre></td></tr></table></figure>
-
 <p>如果能够成功不卡住返回空值，说明 rbd 集群正常，执行 <code>ceph -s</code> 可以看到初始化了 1 个 pool 和 64 个 pgs：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">$ docker exec -it ceph-mon ceph -s</span><br><span class="line">  cluster:</span><br><span class="line">    id:     e3cdecce-16f7-4c0f-9909-ab94a5e7c1b5</span><br><span class="line">    health: HEALTH_OK</span><br><span class="line"></span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum new</span><br><span class="line">    mgr: new(active)</span><br><span class="line">    osd: 1 osds: 1 up, 1 in</span><br><span class="line"></span><br><span class="line">  data:</span><br><span class="line">    pools:   1 pools, 64 pgs</span><br><span class="line">    objects: 0  objects, 0 B</span><br><span class="line">    usage:   2.9 GiB used, 1020 GiB / 1023 GiB avail</span><br><span class="line">    pgs:     64 active+clean</span><br></pre></td></tr></table></figure>
       
@@ -429,49 +531,43 @@
 
       
           <p>本文主要参考 Kubernetes 官方文档 <a target="_blank" rel="noopener" href="https://v1-16.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">Creating a single control-plane cluster with kubeadm (v1.16)</a>，但由于国内实在是访问 Google 困难，之前的教程都是从国内各种镜像中拉取 k8s 镜像，再 tag 成官方的，实在是不太优雅。好在 K8S 新版支持了指定镜像源，可以方便的指定国内源。</p>
-<h1 id="0-安装-docker-和-k8s-相关命令行工具"><a href="#0-安装-docker-和-k8s-相关命令行工具" class="headerlink" title="0. 安装 docker 和 k8s 相关命令行工具"></a>0. 安装 docker 和 k8s 相关命令行工具</h1><h2 id="0-1-安装-docker"><a href="#0-1-安装-docker" class="headerlink" title="0.1 安装 docker"></a>0.1 安装 docker</h2><p>利用 <a target="_blank" rel="noopener" href="http://get.daocloud.io/#install-docker">daocloud</a> 上的 docker 安装方法在国内安装 docker，由于默认会从官方拉，我们可以考虑利用 Aliyun 的镜像</p>
+<h1 id="0-安装-docker-和-k8s-相关命令行工具"><a class="markdownIt-Anchor" href="#0-安装-docker-和-k8s-相关命令行工具"></a> 0. 安装 docker 和 k8s 相关命令行工具</h1>
+<h2 id="01-安装-docker"><a class="markdownIt-Anchor" href="#01-安装-docker"></a> 0.1 安装 docker</h2>
+<p>利用 <a target="_blank" rel="noopener" href="http://get.daocloud.io/#install-docker">daocloud</a> 上的 docker 安装方法在国内安装 docker，由于默认会从官方拉，我们可以考虑利用 Aliyun 的镜像</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -sSL https://get.daocloud.io/docker | sh -s -- --mirror Aliyun</span><br></pre></td></tr></table></figure>
-
 <p>然后配置 docker 加速器，这里我们选择网易的 docker 源，如果有其他国内源，你也可以自行更改</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -sSL https://get.daocloud.io/daotools/set_mirror.sh | sh -s http://hub-mirror.c.163.com</span><br></pre></td></tr></table></figure>
-
 <p>根据提示重启 docker</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo systemctl restart docker.service</span><br></pre></td></tr></table></figure>
-
-<h2 id="0-2-安装-k8s-相关命令行工具——kubelet-kubeadm-kubectl"><a href="#0-2-安装-k8s-相关命令行工具——kubelet-kubeadm-kubectl" class="headerlink" title="0.2 安装 k8s 相关命令行工具——kubelet, kubeadm, kubectl"></a>0.2 安装 k8s 相关命令行工具——<code>kubelet</code>, <code>kubeadm</code>, <code>kubectl</code></h2><p>在这里我们利用阿里云的 ubuntu k8s 源下载 k8s 相关包</p>
+<h2 id="02-安装-k8s-相关命令行工具kubelet-kubeadm-kubectl"><a class="markdownIt-Anchor" href="#02-安装-k8s-相关命令行工具kubelet-kubeadm-kubectl"></a> 0.2 安装 k8s 相关命令行工具——<code>kubelet</code>, <code>kubeadm</code>, <code>kubectl</code></h2>
+<p>在这里我们利用阿里云的 ubuntu k8s 源下载 k8s 相关包</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update &amp;&amp; sudo apt-get install -y apt-transport-https curl</span><br><span class="line">curl -s https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | sudo apt-key add -</span><br><span class="line">sudo tee -a /etc/apt/sources.list.d/kubernetes.list &gt; /dev/null &lt;&lt;EOT</span><br><span class="line">deb http://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main</span><br><span class="line">EOT</span><br><span class="line"></span><br><span class="line">sudo apt install -y kubelet=1.16.2-00 kubeadm=1.16.2-00 kubectl=1.16.2-00</span><br></pre></td></tr></table></figure>
-
 <p>我们这里安装的是目前 K8S 最新的版本 <code>v1.16.2</code></p>
-<h1 id="1-初始化-Kubernetes"><a href="#1-初始化-Kubernetes" class="headerlink" title="1. 初始化 Kubernetes"></a>1. 初始化 Kubernetes</h1><h2 id="1-1-初始化-k8s-master"><a href="#1-1-初始化-k8s-master" class="headerlink" title="1.1 初始化 k8s master"></a>1.1 初始化 k8s master</h2><p>K8s 1.11 支持了 <code>kubeadm</code> 传入配置文件，我们可以新建下述配置文件 <code>kubeadm.conf</code>，注意我们采用的是 k8s 1.16.1 的相关配置，这个版本支持的 etcd 镜像 tag 为 <code>3.3.15-0</code>，如果有必要，<code>dnsDomain</code> 可以改成自己需要的，这里我们采用默认的 <code>cluster.local</code></p>
+<h1 id="1-初始化-kubernetes"><a class="markdownIt-Anchor" href="#1-初始化-kubernetes"></a> 1. 初始化 Kubernetes</h1>
+<h2 id="11-初始化-k8s-master"><a class="markdownIt-Anchor" href="#11-初始化-k8s-master"></a> 1.1 初始化 k8s master</h2>
+<p>K8s 1.11 支持了 <code>kubeadm</code> 传入配置文件，我们可以新建下述配置文件 <code>kubeadm.conf</code>，注意我们采用的是 k8s 1.16.1 的相关配置，这个版本支持的 etcd 镜像 tag 为 <code>3.3.15-0</code>，如果有必要，<code>dnsDomain</code> 可以改成自己需要的，这里我们采用默认的 <code>cluster.local</code></p>
 <p>如果你的 k8s 版本不一致，可以采用 <code>kubeadm config images list</code> 查看你的 k8s 所需要的 etcd 镜像 tag。</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">kubeadm.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ClusterConfiguration</span></span><br><span class="line"><span class="attr">etcd:</span></span><br><span class="line">  <span class="comment"># one of local or external</span></span><br><span class="line">  <span class="attr">local:</span></span><br><span class="line">    <span class="attr">imageRepository:</span> <span class="string">&quot;registry.aliyuncs.com/google_containers&quot;</span> <span class="comment"># origin is &quot;k8s.gcr.io&quot;</span></span><br><span class="line">    <span class="attr">imageTag:</span> <span class="string">&quot;3.3.15-0&quot;</span></span><br><span class="line"><span class="attr">networking:</span></span><br><span class="line">  <span class="attr">serviceSubnet:</span> <span class="string">&quot;10.96.0.0/12&quot;</span></span><br><span class="line">  <span class="attr">podSubnet:</span> <span class="string">&quot;10.244.0.0/16&quot;</span>    <span class="comment"># for flannel</span></span><br><span class="line">  <span class="attr">dnsDomain:</span> <span class="string">&quot;cluster.local&quot;</span></span><br><span class="line"><span class="attr">kubernetesVersion:</span> <span class="string">&quot;v1.16.2&quot;</span></span><br><span class="line"><span class="attr">imageRepository:</span> <span class="string">&quot;registry.aliyuncs.com/google_containers&quot;</span> <span class="comment"># origin is &quot;k8s.gcr.io&quot;</span></span><br></pre></td></tr></table></figure>
-
 <p>这里我们用到了阿里云的 k8s 镜像源。上面的 <code>kubernetesVersion</code> 写明自己的 kubeadm 版本，不然会去 google 官方请求版本，可能会卡住。然后运行</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubeadm init --config kubeadm.conf</span><br></pre></td></tr></table></figure>
-
 <p>即可初始化集群。</p>
 <p>完成之后，初始化成功，会输出类似于下面的信息</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Your Kubernetes master has initialized successfully!</span><br><span class="line"></span><br><span class="line">To start using your cluster, you need to run the following as a regular user:</span><br><span class="line"></span><br><span class="line">  mkdir -p $HOME/.kube</span><br><span class="line">  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config</span><br><span class="line">  sudo chown $(id -u):$(id -g) $HOME/.kube/config</span><br><span class="line"></span><br><span class="line">You should now deploy a pod network to the cluster.</span><br><span class="line">Run &quot;kubectl apply -f [podnetwork].yaml&quot; with one of the options listed at:</span><br><span class="line">  https://kubernetes.io/docs/concepts/cluster-administration/addons/</span><br><span class="line"></span><br><span class="line">You can now join any number of machines by running the following on each node</span><br><span class="line">as root:</span><br><span class="line"></span><br><span class="line">  kubeadm join 172.17.49.197:6443 --token zq59ch.wrr80vejg49091mw --discovery-token-ca-cert-hash sha256:197810ac44d29e4f311a639b22f1dac7dced81604c489be390a1fa5cf0b96f8d</span><br></pre></td></tr></table></figure>
-
 <p>执行</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mkdir -p $HOME/.kube</span><br><span class="line">sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config</span><br><span class="line">sudo chown $(id -u):$(id -g) $HOME/.kube/config</span><br></pre></td></tr></table></figure>
-
 <p>最后，为了让 master 也可以调度，可以加入下面的命令：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint node $(kubectl get nodes -o name) node-role.kubernetes.io/master-</span><br></pre></td></tr></table></figure>
-
-<h2 id="1-2-添加网络配置"><a href="#1-2-添加网络配置" class="headerlink" title="1.2 添加网络配置"></a>1.2 添加网络配置</h2><p>上述信息做好了之后，在 master 上加入 <code>flannel</code> 插件，flannel 插件版本我们目前采用<a target="_blank" rel="noopener" href="https://v1-16.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#pod-network">文档中针对 v1.16 的版本</a>，由于国内网络环境缓慢，建议下载该文件更改镜像之后再 kubectl apply：</p>
+<h2 id="12-添加网络配置"><a class="markdownIt-Anchor" href="#12-添加网络配置"></a> 1.2 添加网络配置</h2>
+<p>上述信息做好了之后，在 master 上加入 <code>flannel</code> 插件，flannel 插件版本我们目前采用<a target="_blank" rel="noopener" href="https://v1-16.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#pod-network">文档中针对 v1.16 的版本</a>，由于国内网络环境缓慢，建议下载该文件更改镜像之后再 kubectl apply：</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">curl https://raw.githubusercontent.com/coreos/flannel/2140ac876ef134e0ed5af15c65e414cf26827915/Documentation/kube-flannel.yml | sed <span class="string">&#x27;s/quay.io/quay.azk8s.cn/g&#x27;</span> &gt; /tmp/kube-flannel.yml</span><br><span class="line">kubectl apply -f /tmp/kube-flannel.yml</span><br></pre></td></tr></table></figure>
-
 <p>注意上述命令只需要在主节点执行。</p>
-<h2 id="1-3-节点加入"><a href="#1-3-节点加入" class="headerlink" title="1.3 节点加入"></a>1.3 节点加入</h2><p>在 <code>kubeadm init</code>成功后，命令行会显示 Join 命令，命令格式如下：</p>
+<h2 id="13-节点加入"><a class="markdownIt-Anchor" href="#13-节点加入"></a> 1.3 节点加入</h2>
+<p>在 <code>kubeadm init</code>成功后，命令行会显示 Join 命令，命令格式如下：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubeadm join --token &lt;token&gt; &lt;master-ip&gt;:&lt;master-port&gt; --discovery-token-ca-cert-hash sha256:&lt;hash&gt;</span><br></pre></td></tr></table></figure>
-
 <p>但如果之后忘记了命令，可以用下述命令获取 <code>&lt;token&gt;</code>：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubeadm token list</span><br></pre></td></tr></table></figure>
-
 <p>然后可以用下述命令获得 <code>&lt;hash&gt;</code></p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2&gt;/dev/null | openssl dgst -sha256 -hex | sed &#x27;s/^.* //&#x27;</span><br></pre></td></tr></table></figure>
-
 
       
     </div>
@@ -557,20 +653,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -658,6 +754,8 @@
 
 
 
+
+  
 
   
 

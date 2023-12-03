@@ -46,12 +46,12 @@
   };
 </script>
 
-  <meta name="description" content="在书写 Dockerfile 的时候，会存在一个 VOLUME 的关键字，例如 12FROM busyboxVOLUME &#x2F;mnt&#x2F;data  我们如果将这个 Dockerfile 打成一个镜像 1docker build -t test-image .  并将这个镜像在 Kubernetes 中创建一个 Pod 的话，当我们 exec 进入该 Pod，执行 123&#x2F; # df -Th &#x2F;mnt&#x2F;">
+  <meta name="description" content="在书写 Dockerfile 的时候，会存在一个 VOLUME 的关键字，例如 12FROM busyboxVOLUME &#x2F;mnt&#x2F;data 我们如果将这个 Dockerfile 打成一个镜像 1docker build -t test-image . 并将这个镜像在 Kubernetes 中创建一个 Pod 的话，当我们 exec 进入该 Pod，执行 123&#x2F; # df -Th &#x2F;mnt&#x2F;da">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Dockerfile 的 VOLUME 关键字会从镜像传递到 k8s pod 中">
 <meta property="og:url" content="http://weixiaohuang.com/2023/01/27/Dockerfile-%E7%9A%84-VOLUME-%E5%85%B3%E9%94%AE%E5%AD%97%E4%BC%9A%E4%BB%8E%E9%95%9C%E5%83%8F%E4%BC%A0%E9%80%92%E5%88%B0-k8s-pod-%E4%B8%AD/index.html">
 <meta property="og:site_name" content="La campanella">
-<meta property="og:description" content="在书写 Dockerfile 的时候，会存在一个 VOLUME 的关键字，例如 12FROM busyboxVOLUME &#x2F;mnt&#x2F;data  我们如果将这个 Dockerfile 打成一个镜像 1docker build -t test-image .  并将这个镜像在 Kubernetes 中创建一个 Pod 的话，当我们 exec 进入该 Pod，执行 123&#x2F; # df -Th &#x2F;mnt&#x2F;">
+<meta property="og:description" content="在书写 Dockerfile 的时候，会存在一个 VOLUME 的关键字，例如 12FROM busyboxVOLUME &#x2F;mnt&#x2F;data 我们如果将这个 Dockerfile 打成一个镜像 1docker build -t test-image . 并将这个镜像在 Kubernetes 中创建一个 Pod 的话，当我们 exec 进入该 Pod，执行 123&#x2F; # df -Th &#x2F;mnt&#x2F;da">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2023-01-27T13:04:38.000Z">
 <meta property="article:modified_time" content="2023-12-03T03:27:06.773Z">
@@ -237,17 +237,13 @@
       
         <p>在书写 <code>Dockerfile</code> 的时候，会存在一个 <code>VOLUME</code> 的关键字，例如</p>
 <figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> busybox</span><br><span class="line"><span class="keyword">VOLUME</span><span class="language-bash"> /mnt/data</span></span><br></pre></td></tr></table></figure>
-
 <p>我们如果将这个 <code>Dockerfile</code> 打成一个镜像</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker build -t test-image .</span><br></pre></td></tr></table></figure>
-
 <p>并将这个镜像在 Kubernetes 中创建一个 Pod 的话，当我们 exec 进入该 Pod，执行</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">/ <span class="comment"># df -Th /mnt/data/</span></span><br><span class="line">Filesystem           Type            Size      Used Available Use% Mounted on</span><br><span class="line">/dev/sda1            xfs           199.9G     53.8G    146.1G  27% /local-rootfs</span><br></pre></td></tr></table></figure>
-
-<p>会发现 &#x2F;mnt&#x2F;data 被挂载了一个宿主机的临时目录，这种情况其实不是 Kubernetes 能控制的，其实是底层的容器运行时控制的，但这样的话就会导致平台无法控制用户镜像中的 VOLUME，可能会导致用户往对应 VOLUME 里疯狂写入数据造成宿主机磁盘写满而存在安全风险。鉴于现在 Kubernetes 官方推荐使用 containerd，所以我们来说一下针对 containerd 的场景该问题该如何解决。</p>
+<p>会发现 /mnt/data 被挂载了一个宿主机的临时目录，这种情况其实不是 Kubernetes 能控制的，其实是底层的容器运行时控制的，但这样的话就会导致平台无法控制用户镜像中的 VOLUME，可能会导致用户往对应 VOLUME 里疯狂写入数据造成宿主机磁盘写满而存在安全风险。鉴于现在 Kubernetes 官方推荐使用 containerd，所以我们来说一下针对 containerd 的场景该问题该如何解决。</p>
 <p>为了解决该问题，我们需要在 containerd 的 <code>/etc/containerd/config.toml</code> 中使用 <code>ignore_image_defined_volumes = true</code> 去避免该问题，参考 <a target="_blank" rel="noopener" href="https://github.com/kinvolk/containerd-cri/blob/master/docs/config.md">文档</a> ，里面有段注释说明了该选项的功能</p>
 <figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># ignore_image_defined_volumes ignores volumes defined by the image. Useful for better resource</span></span><br><span class="line"><span class="comment"># isolation, security and early detection of issues in the mount configuration when using</span></span><br><span class="line"><span class="comment"># ReadOnlyRootFilesystem since containers won&#x27;t silently mount a temporary volume.</span></span><br></pre></td></tr></table></figure>
-
 <p>具体实现的代码可以在 <a target="_blank" rel="noopener" href="https://github.com/containerd/containerd/blob/v1.5.10/pkg/cri/server/container_create.go#L142">这里</a> 找到。</p>
 
     </div>
@@ -346,20 +342,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -447,6 +443,8 @@
 
 
 
+
+  
 
   
 

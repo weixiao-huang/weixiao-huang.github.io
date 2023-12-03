@@ -46,12 +46,12 @@
   };
 </script>
 
-  <meta name="description" content="初始化 fish 和 tmux 配置一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。 下面我就分享一下我的开机配置方案：  fish 并设置默认终端 .tmux.conf  脚本如下： 123456789101112131415161718">
+  <meta name="description" content="初始化 fish 和 tmux 配置 一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。 下面我就分享一下我的开机配置方案：  fish 并设置默认终端 .tmux.conf  脚本如下： 1234567891011121314151617">
 <meta property="og:type" content="article">
 <meta property="og:title" content="初始化一个比较舒适的开发环境">
 <meta property="og:url" content="http://weixiaohuang.com/2019/09/03/%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%80%E4%B8%AA%E6%AF%94%E8%BE%83%E8%88%92%E9%80%82%E7%9A%84%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/index.html">
 <meta property="og:site_name" content="La campanella">
-<meta property="og:description" content="初始化 fish 和 tmux 配置一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。 下面我就分享一下我的开机配置方案：  fish 并设置默认终端 .tmux.conf  脚本如下： 123456789101112131415161718">
+<meta property="og:description" content="初始化 fish 和 tmux 配置 一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。 下面我就分享一下我的开机配置方案：  fish 并设置默认终端 .tmux.conf  脚本如下： 1234567891011121314151617">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2019-09-03T23:18:00.000Z">
 <meta property="article:modified_time" content="2023-12-03T03:27:06.774Z">
@@ -235,7 +235,8 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h2 id="初始化-fish-和-tmux-配置"><a href="#初始化-fish-和-tmux-配置" class="headerlink" title="初始化 fish 和 tmux 配置"></a>初始化 fish 和 tmux 配置</h2><p>一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。</p>
+        <h2 id="初始化-fish-和-tmux-配置"><a class="markdownIt-Anchor" href="#初始化-fish-和-tmux-配置"></a> 初始化 fish 和 tmux 配置</h2>
+<p>一般来说，拿到一台 Linux 服务器，没有好用的 shell，没有好用的 tmux 配置，用起来很让人头疼。特别是有时候不知道 sudo 密码，但是可以不用密码 sudo，设置默认终端也是很麻烦的一件事情。</p>
 <p>下面我就分享一下我的开机配置方案：</p>
 <ul>
 <li>fish 并设置默认终端</li>
@@ -243,14 +244,12 @@
 </ul>
 <p>脚本如下：</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># install software-properties-common</span></span><br><span class="line">sudo apt-get update -y &amp;&amp; \</span><br><span class="line">sudo apt install -y software-properties-common</span><br><span class="line"></span><br><span class="line"><span class="comment"># install fish</span></span><br><span class="line">sudo apt-add-repository -y ppa:fish-shell/release-3 &amp;&amp; \</span><br><span class="line">sudo apt-get update -y &amp;&amp; \</span><br><span class="line">sudo apt-get install -y fish &amp;&amp; \</span><br><span class="line">sudo <span class="built_in">rm</span> /etc/apt/sources.list.d/fish-shell-*</span><br><span class="line"></span><br><span class="line"><span class="comment"># use fish as default shell</span></span><br><span class="line"><span class="built_in">command</span> -v fish | sudo <span class="built_in">tee</span> -a /etc/shells</span><br><span class="line">sudo chsh -s <span class="string">&quot;<span class="subst">$(command -v fish)</span>&quot;</span> <span class="string">&quot;<span class="variable">$&#123;USER&#125;</span>&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># install tmux and tmux config</span></span><br><span class="line">sudo apt update -y &amp;&amp; sudo apt install tmux</span><br><span class="line"><span class="built_in">cd</span> &amp;&amp; git <span class="built_in">clone</span> https://github.com/gpakosz/.tmux.git &amp;&amp; \</span><br><span class="line"><span class="built_in">ln</span> -s -f .tmux/.tmux.conf &amp;&amp; \</span><br><span class="line"><span class="built_in">cp</span> .tmux/.tmux.conf.local .</span><br></pre></td></tr></table></figure>
-
 <p>退出重新 ssh 服务器，或者重新打开终端，即可有一个非常爽 fish+tmux 环境</p>
-<h2 id="更改-tmux-conf-的-tmux-prefix-配置"><a href="#更改-tmux-conf-的-tmux-prefix-配置" class="headerlink" title="更改 .tmux.conf 的 tmux prefix 配置"></a>更改 .tmux.conf 的 tmux prefix 配置</h2><p>由于 <a target="_blank" rel="noopener" href="https://github.com/gpakosz/.tmux.git">https://github.com/gpakosz/.tmux.git</a> 的 .tmux 配置可以使用 C-b 也可以使用 C-a，但是作为 emacs 终端快捷键使用者，这两个键分别是左移和回到行首，不是很方便，我一般改成 C-x，更改方案是，进入 <code>~/.tmux.conf</code>，更改下述两行</p>
+<h2 id="更改-tmuxconf-的-tmux-prefix-配置"><a class="markdownIt-Anchor" href="#更改-tmuxconf-的-tmux-prefix-配置"></a> 更改 .tmux.conf 的 tmux prefix 配置</h2>
+<p>由于 <a target="_blank" rel="noopener" href="https://github.com/gpakosz/.tmux.git">https://github.com/gpakosz/.tmux.git</a> 的 .tmux 配置可以使用 C-b 也可以使用 C-a，但是作为 emacs 终端快捷键使用者，这两个键分别是左移和回到行首，不是很方便，我一般改成 C-x，更改方案是，进入 <code>~/.tmux.conf</code>，更改下述两行</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">set -g prefix2 C-a                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-a send-prefix -2</span><br></pre></td></tr></table></figure>
-
 <p>为</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">set -g prefix2 C-x                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-x send-prefix -2</span><br><span class="line">set -g prefix C-x                        # GNU-Screen compatible prefix</span><br><span class="line">bind C-x send-prefix</span><br></pre></td></tr></table></figure>
-
 <p>即可。</p>
 
     </div>
@@ -336,7 +335,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96-fish-%E5%92%8C-tmux-%E9%85%8D%E7%BD%AE"><span class="nav-number">1.</span> <span class="nav-text">初始化 fish 和 tmux 配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9B%B4%E6%94%B9-tmux-conf-%E7%9A%84-tmux-prefix-%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">更改 .tmux.conf 的 tmux prefix 配置</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96-fish-%E5%92%8C-tmux-%E9%85%8D%E7%BD%AE"><span class="nav-number">1.</span> <span class="nav-text"> 初始化 fish 和 tmux 配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9B%B4%E6%94%B9-tmuxconf-%E7%9A%84-tmux-prefix-%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text"> 更改 .tmux.conf 的 tmux prefix 配置</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -350,20 +349,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -451,6 +450,8 @@
 
 
 
+
+  
 
   
 

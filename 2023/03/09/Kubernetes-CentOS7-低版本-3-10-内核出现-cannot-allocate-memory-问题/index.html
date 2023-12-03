@@ -237,7 +237,6 @@
       
         <p>在标准的 CentOS 7 系统中，标配的是 3.10 版本的 Linux kernel，在这个内核下搭建 Kubernetes 一版来说还是比较稳定的，但是当集群跑着跑着，创建的 Pod 多于一定数量的时候，就会发现新 Pod 再也创建不起来了，报错</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:279: applying cgroup configuration for process caused \&quot;mkdir /sys/fs/cgroup/memory/kubepods/burstable/pod7d54e3ab-2639-11ea-b794-801844e495bc/cba62d4976e90bfdc2fb7cf20a7c37dfbf4b2273742b78f27b6d9b5d15b284ce: cannot allocate memory\&quot;&quot;: unknown</span><br></pre></td></tr></table></figure>
-
 <p>主要的关键字是 <code>cannot allocate memory</code>，当然这个问题网上有诸多解答，搜索这个问题其实也挺费劲，但是最终发现一个帖子写得不错，比较有参考意义，在此贴上链接： <a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/2141496">https://cloud.tencent.com/developer/article/2141496</a> 。这篇文章详细的说明了这个问题发生的原因，也给出了解决方案。在这里总结一下解决方案：</p>
 <ul>
 <li>方案一：升级内核到 4.x 之后能解决</li>
@@ -248,20 +247,15 @@
 <p>方案二在上面的文章里也说了一些，这里可以再做一些补充。</p>
 <p>首先执行</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vim /etc/default/grub</span><br></pre></td></tr></table></figure>
-
 <p>将 <code>GRUB_CMDLINE_LINUX</code> 的配置</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">GRUB_CMDLINE_LINUX=&quot;crashkernel=auto spectre_v2=retpoline intel_iommu=on iommu=pt rootflags=prjquota&quot;</span><br></pre></td></tr></table></figure>
-
 <p>末尾加上 <code>cgroup.memory=nokmem</code>，例如</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">GRUB_CMDLINE_LINUX=&quot;crashkernel=auto spectre_v2=retpoline intel_iommu=on iommu=pt rootflags=prjquota cgroup.memory=nokmem&quot;</span><br></pre></td></tr></table></figure>
-
 <p>然后下面需要注意，根据机器启动方式不一样，需要生成的 grub 配置可能不一样。</p>
 <p>先试用 <code>ls /sys/firmware/efi</code> 查看 <code>/sys/firmware/efi</code> 是否存在，如果存在的话，那么该机器是通过 UEFI 启动，则执行</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cp</span> /boot/efi/EFI/centos/grub.cfg /boot/efi/EFI/centos/grub.cfg.bak</span><br><span class="line">grub2-mkconfig -o /boot/efi/EFI/centos/grub.cfg</span><br></pre></td></tr></table></figure>
-
 <p>如果上述目录不存在的话，则执行</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cp</span> /boot/grub2/grub.cfg /boot/grub2/grub.cfg.bak</span><br><span class="line">grub2-mkconfig -o /boot/grub2/grub.cfg</span><br></pre></td></tr></table></figure>
-
 <p>执行完成之后，可以用重启机器。</p>
 <p>机器重启成功之后，可以使用 <code>cat /proc/cmdline</code> 检查配置是否生效，如果里面有 <code>cgroup.memory=nokmem</code> 相关的配置项，则说明修改成功。</p>
 
@@ -361,20 +355,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -462,6 +456,8 @@
 
 
 
+
+  
 
   
 

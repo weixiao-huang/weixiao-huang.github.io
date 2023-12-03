@@ -240,7 +240,6 @@
 <p>但是当我们要使用 ssh 来 <code>git clone</code> 的时候，会发现无法使用。我们需要更改一下 ssh 的配置，方式如下：</p>
 <p>更改 <code>~/.ssh/config</code> 添加下面的代码</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Host  github.com</span><br><span class="line">  User git</span><br><span class="line">  ProxyCommand socat - PROXY:my.proxy:%h:%p,proxyport=1087</span><br></pre></td></tr></table></figure>
-
 <p>通过上述方式即可以通过代理连接上 github，使用 <code>git clone git@github.com:weixiao-huang/weixiao-huang.github.io.git</code></p>
 
     </div>
@@ -263,7 +262,10 @@
     <a href="/2023/05/07/gloo-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="prev" title="gloo 源码解析">
       <i class="fa fa-chevron-left"></i> gloo 源码解析
     </a></div>
-      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Tensor-analysis-in-matrix-multiplication/" rel="next" title="张量分析推导 AI 反向传播中的经典案例">
+      张量分析推导 AI 反向传播中的经典案例 <i class="fa fa-chevron-right"></i>
+    </a></div>
     </div>
       </footer>
     
@@ -336,20 +338,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -437,6 +439,8 @@
 
 
 
+
+  
 
   
 

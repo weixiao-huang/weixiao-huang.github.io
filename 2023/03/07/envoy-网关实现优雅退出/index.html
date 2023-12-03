@@ -241,11 +241,9 @@
 <p>初步调研看来， <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/pull/3458">gloo 有 PR</a> 实现了一个简单的优雅退出的逻辑，也写了 <a target="_blank" rel="noopener" href="https://docs.solo.io/gloo-edge/latest/operations/advanced/zero-downtime-gateway-rollout/#configuring-the-kubernetes-probes">相关文档</a>。但仔细看了 PR 里的细节才发现，gloo 的这个功能比较鸡肋，可能会造成所有的 conn 都退出之后，还在等 sleep 的诡异景象，使得 gateway-proxy pod 迟迟处于 Terminating 状态，不是一个合理的解决方案。</p>
 <p>经过调研，我们发现 istio 自己实现了一个优雅退出，<a target="_blank" rel="noopener" href="https://www.zhaohuabing.com/istio-guide/docs/best-practice/graceful-termination/">通过暴露一个 <code>EXIT_ON_ZERO_ACTIVE_CONNECTIONS </code> 配置</a>。这个给了我们新思路，仔细查看它的代码，详细逻辑是 <a target="_blank" rel="noopener" href="https://github.com/istio/istio/blob/1.17.2/pkg/envoy/agent.go#L170"><code>activeProxyConnections</code></a> 这个函数</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(a *Agent)</span></span> activeProxyConnections() (<span class="type">int</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	activeConnectionsURL := fmt.Sprintf(<span class="string">&quot;http://%s:%d/stats?usedonly&amp;filter=downstream_cx_active$&quot;</span>, a.localhost, a.adminPort)</span><br><span class="line">	stats, err := http.DoHTTPGet(activeConnectionsURL)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>, fmt.Errorf(<span class="string">&quot;unable to get listener stats from Envoy : %v&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> stats.Len() == <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 后面的逻辑省略</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>可以看到可以采用 envoy 的 <a target="_blank" rel="noopener" href="https://www.envoyproxy.io/docs/envoy/latest/operations/admin#get--stats">&#x2F;stats</a> 接口了解到 downstream 的连接数，通过对监控指标的 filter 即可查询到连接数，如果连接数一直不清零，就一直等待即可。</p>
+<p>可以看到可以采用 envoy 的 <a target="_blank" rel="noopener" href="https://www.envoyproxy.io/docs/envoy/latest/operations/admin#get--stats">/stats</a> 接口了解到 downstream 的连接数，通过对监控指标的 filter 即可查询到连接数，如果连接数一直不清零，就一直等待即可。</p>
 <p>最终我们通过给 gateway-proxy Pod 书写如下的 <code>preStop</code> 终于实现了优雅退出</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">lifecycle:</span></span><br><span class="line">  <span class="attr">preStop:</span></span><br><span class="line">    <span class="attr">exec:</span></span><br><span class="line">      <span class="attr">command:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/bin/sh</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">-c</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">for</span> <span class="string">i</span> <span class="string">in</span> <span class="string">$(seq</span> <span class="number">1</span> <span class="number">8640</span><span class="string">);</span> <span class="string">do</span> <span class="string">if</span> [[ <span class="string">$(wget</span> <span class="string">-O-</span> <span class="string">&quot;127.0.0.1:19000/stats?usedonly&amp;filter=^listener\.\[__\]_2222\.downstream_cx_active$&quot;</span></span><br><span class="line">        <span class="string">|</span> <span class="string">awk</span> <span class="string">&#x27;BEGIN&#123;sum=0&#125;&#123;sum+=$2;&#125;END&#123;print sum;&#125;&#x27;</span><span class="string">)</span> <span class="string">-ne</span> <span class="number">0</span>  ]]<span class="string">;</span> <span class="string">then</span> <span class="string">sleep</span></span><br><span class="line">        <span class="number">10</span><span class="string">;</span> <span class="string">else</span> <span class="string">break;</span> <span class="string">fi</span> <span class="string">done</span></span><br></pre></td></tr></table></figure>
-
 <p>稍微解释一下上面的 command</p>
 <ul>
 <li>for 循环的作用：我们采用了一个 for 循环，循环 8640 次，并且利用 sleep 命令实现 10s 检测一次，因此总共 86400s，即优雅退出 timeout 大概在 1d 以上。</li>
@@ -351,20 +349,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -452,6 +450,8 @@
 
 
 
+
+  
 
   
 

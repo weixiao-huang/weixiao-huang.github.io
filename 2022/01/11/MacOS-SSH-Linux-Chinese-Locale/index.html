@@ -46,12 +46,12 @@
   };
 </script>
 
-  <meta name="description" content="一、起因在开发机器上跑 bazel 构建命令的时候会报错  1missing input file &amp;#x27;&#x2F;&#x2F;projects&#x2F;aaa&#x2F;bbb:public&#x2F;docs&#x2F;home&#x2F;个人中心.md&amp;#x27;  但是实际上是存在这个文件的。执行 ls 对应目录发现下面的报错 12$ ls xxx&#x2F;_sidebar.md  ????????????.md  ????????????.md  ???">
+  <meta name="description" content="一、起因 在开发机器上跑 bazel 构建命令的时候会报错 1missing input file &amp;#x27;&#x2F;&#x2F;projects&#x2F;aaa&#x2F;bbb:public&#x2F;docs&#x2F;home&#x2F;个人中心.md&amp;#x27; 但是实际上是存在这个文件的。执行 ls 对应目录发现下面的报错 12$ ls xxx&#x2F;_sidebar.md  ????????????.md  ????????????.md  ???">
 <meta property="og:type" content="article">
 <meta property="og:title" content="记一次 MacOS SSH Linux 之后出现中文乱码">
 <meta property="og:url" content="http://weixiaohuang.com/2022/01/11/MacOS-SSH-Linux-Chinese-Locale/index.html">
 <meta property="og:site_name" content="La campanella">
-<meta property="og:description" content="一、起因在开发机器上跑 bazel 构建命令的时候会报错  1missing input file &amp;#x27;&#x2F;&#x2F;projects&#x2F;aaa&#x2F;bbb:public&#x2F;docs&#x2F;home&#x2F;个人中心.md&amp;#x27;  但是实际上是存在这个文件的。执行 ls 对应目录发现下面的报错 12$ ls xxx&#x2F;_sidebar.md  ????????????.md  ????????????.md  ???">
+<meta property="og:description" content="一、起因 在开发机器上跑 bazel 构建命令的时候会报错 1missing input file &amp;#x27;&#x2F;&#x2F;projects&#x2F;aaa&#x2F;bbb:public&#x2F;docs&#x2F;home&#x2F;个人中心.md&amp;#x27; 但是实际上是存在这个文件的。执行 ls 对应目录发现下面的报错 12$ ls xxx&#x2F;_sidebar.md  ????????????.md  ????????????.md  ???">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2022-01-11T14:44:39.000Z">
 <meta property="article:modified_time" content="2023-12-03T03:27:06.773Z">
@@ -235,14 +235,14 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h1 id="一、起因"><a href="#一、起因" class="headerlink" title="一、起因"></a>一、起因</h1><p>在开发机器上跑 bazel 构建命令的时候会报错 </p>
+        <h1 id="一-起因"><a class="markdownIt-Anchor" href="#一-起因"></a> 一、起因</h1>
+<p>在开发机器上跑 bazel 构建命令的时候会报错</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">missing input file <span class="string">&#x27;//projects/aaa/bbb:public/docs/home/个人中心.md&#x27;</span></span><br></pre></td></tr></table></figure>
-
 <p>但是实际上是存在这个文件的。执行 ls 对应目录发现下面的报错</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">ls</span> xxx/</span><br><span class="line">_sidebar.md  ????????????.md  ????????????.md  ????????????.md  ????????????.md  ????????????.md  ????????????.md</span><br></pre></td></tr></table></figure>
-
 <p>比较奇怪，问了其他同学说没有这个问题。</p>
-<h1 id="二、解决"><a href="#二、解决" class="headerlink" title="二、解决"></a>二、解决</h1><p>自己搜索了半天，终于找到一个靠谱的知乎问题：<a target="_blank" rel="noopener" href="https://www.zhihu.com/question/20117388">用 macOS 自带的 SSH 登陆 Linux 后出现中文乱码，如何解决？</a></p>
+<h1 id="二-解决"><a class="markdownIt-Anchor" href="#二-解决"></a> 二、解决</h1>
+<p>自己搜索了半天，终于找到一个靠谱的知乎问题：<a target="_blank" rel="noopener" href="https://www.zhihu.com/question/20117388">用 macOS 自带的 SSH 登陆 Linux 后出现中文乱码，如何解决？</a></p>
 <p>按照提示 <code>sudo vim /etc/ssh/ssh_config</code> 之后，注释掉 <code>SendEnv LANG LC_*</code> 即可解决。</p>
 <p>需要注意的是，该问题每次 MacOS 系统升级之后都需要手动配置一下，似乎每次系统升级都会把 <code>SendEnv LANG LC_*</code> 加回去。</p>
 
@@ -329,7 +329,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E8%B5%B7%E5%9B%A0"><span class="nav-number">1.</span> <span class="nav-text">一、起因</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E8%A7%A3%E5%86%B3"><span class="nav-number">2.</span> <span class="nav-text">二、解决</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%80-%E8%B5%B7%E5%9B%A0"><span class="nav-number">1.</span> <span class="nav-text"> 一、起因</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8C-%E8%A7%A3%E5%86%B3"><span class="nav-number">2.</span> <span class="nav-text"> 二、解决</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -343,20 +343,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -444,6 +444,8 @@
 
 
 
+
+  
 
   
 
