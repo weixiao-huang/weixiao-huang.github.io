@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('http://weixiaohuang.com').hostname,
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="gloo 是一款基于 envoy 的云原生的API网关，它能够非常方便的和 K8S 进行集成，通过监听相关的 CRD，基于 envoy 的 xDS 接口对 envoy 配置进行 hot reload。同时也能很方便的集成 knative。另外它的文档也比较完善，设计比较简单，易于上手。 关于如何上手并使用 gloo，相信网上也能搜到一些中文资料，当然最好的方式当然是直接去 gloo 官方文档 查看">
+<meta property="og:type" content="article">
+<meta property="og:title" content="gloo 源码解析">
+<meta property="og:url" content="http://weixiaohuang.com/2023/05/07/gloo-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/index.html">
+<meta property="og:site_name" content="La campanella">
+<meta property="og:description" content="gloo 是一款基于 envoy 的云原生的API网关，它能够非常方便的和 K8S 进行集成，通过监听相关的 CRD，基于 envoy 的 xDS 接口对 envoy 配置进行 hot reload。同时也能很方便的集成 knative。另外它的文档也比较完善，设计比较简单，易于上手。 关于如何上手并使用 gloo，相信网上也能搜到一些中文资料，当然最好的方式当然是直接去 gloo 官方文档 查看">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2023-05-07T03:03:30.000Z">
+<meta property="article:modified_time" content="2024-09-18T13:47:43.101Z">
+<meta property="article:author" content="Weixiao Huang">
+<meta property="article:tag" content="gateway">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://weixiaohuang.com/2023/05/07/gloo-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>gloo 源码解析 | La campanella</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">La campanella</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2023/05/07/gloo-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          gloo 源码解析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2023-05-07 11:03:30" itemprop="dateCreated datePublished" datetime="2023-05-07T11:03:30+08:00">2023-05-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2024-09-18 21:47:43" itemprop="dateModified" datetime="2024-09-18T21:47:43+08:00">2024-09-18</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Gateway/" itemprop="url" rel="index">
+                    <span itemprop="name">Gateway</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo">gloo</a> 是一款基于 envoy 的云原生的API网关，它能够非常方便的和 K8S 进行集成，通过监听相关的 CRD，基于 envoy 的 <a target="_blank" rel="noopener" href="https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol">xDS</a> 接口对 envoy 配置进行 hot reload。同时也能<a target="_blank" rel="noopener" href="https://docs.solo.io/gloo-edge/1.7.23/installation/knative/">很方便的集成 knative</a>。另外它的文档也比较完善，设计比较简单，易于上手。</p>
+<p>关于如何上手并使用 gloo，相信网上也能搜到一些中文资料，当然最好的方式当然是直接去 <a target="_blank" rel="noopener" href="https://docs.solo.io/gloo-edge/latest/">gloo 官方文档</a> 查看。本文主要深入 gloo 的源码，探究 gloo 是如何实现对 envoy 的配置下发的。</p>
+<p>从最基本意义上讲，gloo 是转化引擎，Envoy xDS 服务器为 Envoy 提供高级配置（包括 gloo 的自定义 Envoy 过滤器）。gloo 遵循基于事件的体系结构，监视各种配置源以进行更新，并立即通过 v2 版本的 gRPC 接口更新 Envoy 配置。</p>
+<p>本文基于 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/tree/v1.14.0">gloo 1.14.0</a> 对 gloo 源码进行分析。</p>
+<h2 id="核心代码结构"><a href="#核心代码结构" class="headerlink" title="核心代码结构"></a>核心代码结构</h2><h3 id="gloo-的核心概念"><a href="#gloo-的核心概念" class="headerlink" title="gloo 的核心概念"></a>gloo 的核心概念</h3><p>整体上，gloo 的核心概念如下图所示：</p>
+
+<div class="mxgraph-container">
+    <div class="mxgraph" style="max-width:100%;border:1px solid transparent;" data-mxgraph="{&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;lightbox&quot;:false,&quot;nav&quot;:true,&quot;resize&quot;:false,&quot;page&quot;:0,&quot;toolbar&quot;:&quot;lightbox zoom layers pages&quot;,&quot;url&quot;:&quot;/images/gloo-code-structure.drawio&quot;}"></div>
+</div>
+
+
+
+<p>可以看到，主要核心控制器有 3 个：<code>Emitter</code>、<code>EventLoop</code> 和 <code>Syncer</code>。其中 <code>Emitter</code> 实现了 <code>Snapshots()</code> 函数，这个函数会返回一个 <code>Snapshot</code> channel，然后在主循环 <code>EventLoop</code> 中会执行一个 <code>Run()</code> 函数去监听 <code>Snapshot</code> channel，一旦接收到新的 <code>Snapshot</code>，就会把这个 <code>Snapshot</code> 发送给 <code>Syncer</code> 实现的 <code>Sync()</code> 函数去处理，而这个 <code>Sync()</code> 函数就是最主要的将 gloo 配置同步到 envoy 的核心函数。</p>
+<p>在上面我们可以频繁提到一个 <code>Snapshot</code> 的概念，这个就是 gloo 的最核心的数据结构。<code>Snapshot</code> 是一堆资源的集合，包括 gloo 的各种 CR 以及 K8S 的 Services 等资源，下面是 <code>ApiSnapshot</code> 的一个定义，可以参考<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot.sk.go#L24">源码</a>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ApiSnapshot <span class="keyword">struct</span> &#123;</span><br><span class="line">	Artifacts          gloo_solo_io.ArtifactList</span><br><span class="line">	Endpoints          gloo_solo_io.EndpointList</span><br><span class="line">	Proxies            gloo_solo_io.ProxyList</span><br><span class="line">	UpstreamGroups     gloo_solo_io.UpstreamGroupList</span><br><span class="line">	Secrets            gloo_solo_io.SecretList</span><br><span class="line">	Upstreams          gloo_solo_io.UpstreamList</span><br><span class="line">	AuthConfigs        enterprise_gloo_solo_io.AuthConfigList</span><br><span class="line">	Ratelimitconfigs   github_com_solo_io_gloo_projects_gloo_pkg_api_external_solo_ratelimit.RateLimitConfigList</span><br><span class="line">	VirtualServices    gateway_solo_io.VirtualServiceList</span><br><span class="line">	RouteTables        gateway_solo_io.RouteTableList</span><br><span class="line">	Gateways           gateway_solo_io.GatewayList</span><br><span class="line">	VirtualHostOptions gateway_solo_io.VirtualHostOptionList</span><br><span class="line">	RouteOptions       gateway_solo_io.RouteOptionList</span><br><span class="line">	HttpGateways       gateway_solo_io.MatchableHttpGatewayList</span><br><span class="line">	GraphqlApis        graphql_gloo_solo_io.GraphQLApiList</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上面的 <code>ApiSnapshot</code> 里储存了很多东西，包括 gloo 自己的 CRD，例如 <code>UpstreamList</code>、<code>VirtualServiceList</code>、<code>RouteTableList</code> 等，也有 K8S 自己的资源（当然 gloo 在这里稍微做了一层转换），例如 <code>EndpointList</code>、<code>SecretList</code> 等。</p>
+<p><code>Snapshot</code> 的作用如下：</p>
+<ul>
+<li>gloo 会通过一些 informer 接收到 K8S 中相应的 CRD 信息，并把这些信息汇总到 <code>Snapshot</code> 中</li>
+<li>gloo 会在 <code>Snapshots()</code> 函数中<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L882">一秒轮训一次</a>，周期性的把 <code>Snapshot</code> 送入 <code>Emitter</code> 的 <code>Snapshots()</code> 接口返回的 <code>Snapshot</code> Channel 中</li>
+</ul>
+<h2 id="核心-Translate-流程"><a href="#核心-Translate-流程" class="headerlink" title="核心 Translate 流程"></a>核心 Translate 流程</h2><p>下图是一个总体的服务入口和 Translate 流程</p>
+
+<div class="mxgraph-container">
+    <div class="mxgraph" style="max-width:100%;border:1px solid transparent;" data-mxgraph="{&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;lightbox&quot;:false,&quot;nav&quot;:true,&quot;resize&quot;:false,&quot;page&quot;:0,&quot;toolbar&quot;:&quot;lightbox zoom layers pages&quot;,&quot;url&quot;:&quot;/images/gloo-translate.drawio&quot;}"></div>
+</div>
+
+
+<h2 id="gloo-如何把-K8S-的资源汇总转换到-Snapshot-中"><a href="#gloo-如何把-K8S-的资源汇总转换到-Snapshot-中" class="headerlink" title="gloo 如何把 K8S 的资源汇总转换到 Snapshot 中"></a>gloo 如何把 K8S 的资源汇总转换到 Snapshot 中</h2><p>在这里我们主要查看一下 <code>Emitter</code> 的逻辑，下面是一个 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L131"><code>apiEmitter</code> 的定义</a></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> apiEmitter <span class="keyword">struct</span> &#123;</span><br><span class="line">	forceEmit            &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">	artifact             gloo_solo_io.ArtifactClient</span><br><span class="line">	endpoint             gloo_solo_io.EndpointClient</span><br><span class="line">	proxy                gloo_solo_io.ProxyClient</span><br><span class="line">	upstreamGroup        gloo_solo_io.UpstreamGroupClient</span><br><span class="line">	secret               gloo_solo_io.SecretClient</span><br><span class="line">	upstream             gloo_solo_io.UpstreamClient</span><br><span class="line">	authConfig           enterprise_gloo_solo_io.AuthConfigClient</span><br><span class="line">	rateLimitConfig      github_com_solo_io_gloo_projects_gloo_pkg_api_external_solo_ratelimit.RateLimitConfigClient</span><br><span class="line">	virtualService       gateway_solo_io.VirtualServiceClient</span><br><span class="line">	routeTable           gateway_solo_io.RouteTableClient</span><br><span class="line">	gateway              gateway_solo_io.GatewayClient</span><br><span class="line">	virtualHostOption    gateway_solo_io.VirtualHostOptionClient</span><br><span class="line">	routeOption          gateway_solo_io.RouteOptionClient</span><br><span class="line">	matchableHttpGateway gateway_solo_io.MatchableHttpGatewayClient</span><br><span class="line">	graphQLApi           graphql_gloo_solo_io.GraphQLApiClient</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到 <code>Emitter</code> 中存了很多 <code>Client</code>，需要注意的是这些 <code>Client</code> 并不是 K8S 的 client-go，而是 gloo 自己封装的 client。</p>
+<p><code>Emitter</code> 的 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#LL259C11-L259C11"><code>Snapshots()</code> 方法</a>会做以下事情</p>
+<ol>
+<li>初始化各 <code>Client</code> 并 watch 其中数据变化</li>
+<li>一旦 Watch 到数据，对数据进行部分处理，然后塞入临时的 <code>currentSnapshot</code> 结构体中</li>
+<li>每一秒一次，把 <code>currentSnapshot</code> 送入 <code>Snapshot</code> channel</li>
+</ol>
+<p>下面针对这 3 个过程从源码进行解析</p>
+<h3 id="1-初始化各-Client-并-watch-其中数据变化"><a href="#1-初始化各-Client-并-watch-其中数据变化" class="headerlink" title="1. 初始化各 Client 并 watch 其中数据变化"></a>1. 初始化各 <code>Client</code> 并 watch 其中数据变化</h3><p>第一步，<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L150"><code>apiEmitter</code> 的 <code>Register()</code> 函数</a>会调用各个 client 的 <code>Register</code> 接口，这些 <code>Register</code> 接口会对各个 client 对应的 K8S informer 进行初始化。这些 <code>Register</code> 会最终调用到 <a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/clients/client_interface.go#L34"><code>ResourceClient</code> 这个接口的 <code>Register()</code></a>，这部分代码已经不在 gloo 里了，是在 gloo 依赖的 solo-kit 中。然后这个 <code>Register()</code> 最重要的是实现方式在 <a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/clients/kube/resource_client.go#L154">kube&#x2F;resource_client.go</a>，最终会调用到 <a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/clients/kube/resource_client_factory.go#L159">kube&#x2F;resource_client_factory.go</a> 中。这个函数里的逻辑就很清晰了，里面针对需要监听的 <code>namespace</code> 初始化了对应资源的 sharedInformer 并加入缓存中。</p>
+<p>第二步，会调用各个 client 的 <code>List</code> 接口，对 <code>Register()</code> 中注册的 informer 进行 <code>Start</code>，等待数据 sync 到本地 cache 之后顺便 <code>List</code> 一份返回。<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L416">这里</a>是一个 artifact 资源的 <code>List</code> 调用的地方，往里看也会调用到 solo-kit 的 <a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/clients/kube/resource_client.go#L288">kube&#x2F;resource_client.go</a> 或 <a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/clients/kubesecret/resource_client.go#L244">kubesecret&#x2F;resource_client.go</a> 的 <code>List</code> 代码。</p>
+<p>第三部，会调用各个 client 的 <code>Watch</code> 接口，监听该资源的情况，一旦有变化会反馈到 <code>Watch</code> 接口返回的 channel 中。例如<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L423">这里</a>是一个 artifact 资源的 <code>Watch</code> 调用的地方，最终也会调用到 solo-kit，此处不在赘述。</p>
+<h3 id="2-Watch-到数据，对数据进行部分处理"><a href="#2-Watch-到数据，对数据进行部分处理" class="headerlink" title="2. Watch 到数据，对数据进行部分处理"></a>2. Watch 到数据，对数据进行部分处理</h3><p>上面的 <code>Watch</code> 接口会返回一个 <code>artifactNamespacesChan</code>，在下面会<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L706">监听这个 channel</a>，一旦有数据过来，就会<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L713">汇总发布到 <code>artifactChan</code> 中</a>，然后另一个 goroutine 也<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L925">在监听 <code>artifactChan</code></a>，一旦有数据产生，就会<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L946">放入 <code>currentSnapshot</code> 中</a>。</p>
+<p>gloo 通过这种方式，把所有需要的资源逗整合到了 <code>Snapshot</code> 结构体中。</p>
+<h3 id="3-把-currentSnapshot-送入-Snapshot-channel"><a href="#3-把-currentSnapshot-送入-Snapshot-channel" class="headerlink" title="3. 把 currentSnapshot 送入 Snapshot channel"></a>3. 把 <code>currentSnapshot</code> 送入 <code>Snapshot</code> channel</h3><p><a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L882">每一秒一次</a>，将上面 <code>List</code> 以及 <code>Watch</code> 得到的结果<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L846">都放入 <code>currentSnapshot</code> 中</a>，最后<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#LL897C4-L897C16">把 <code>currentSnapshot</code> 深拷贝一份</a>，<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/api/v1/gloosnapshot/api_snapshot_emitter.sk.go#L899">放入 <code>Snapshot</code> channel 中</a>。</p>
+<p>通过上面的三步，就实现了最核心的 K8S 资源到 <code>Snapshot</code> 的转换，最后会将这个 <code>Snapshot</code> 资源传入 <code>Sync()</code> 函数中，实现最核心的 K8S 配置到 envoy 的 xDS 转换流程。</p>
+<h2 id="xDS-流程"><a href="#xDS-流程" class="headerlink" title="xDS 流程"></a>xDS 流程</h2><p>gloo 的 Translate 最终做的工作是把 <code>ApiSnapshot</code> 转化为下面的 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/xds/envoy_snapshot.go#L40"><code>EnvoySnapshot</code></a>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Snapshot is an internally consistent snapshot of xDS resources.</span></span><br><span class="line"><span class="comment">// Consistently is important for the convergence as different resource types</span></span><br><span class="line"><span class="comment">// from the snapshot may be delivered to the proxy in arbitrary order.</span></span><br><span class="line"><span class="keyword">type</span> EnvoySnapshot <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// Endpoints are items in the EDS V3 response payload.</span></span><br><span class="line">	Endpoints cache.Resources</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Clusters are items in the CDS response payload.</span></span><br><span class="line">	Clusters cache.Resources</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Routes are items in the RDS response payload.</span></span><br><span class="line">	Routes cache.Resources</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Listeners are items in the LDS response payload.</span></span><br><span class="line">	Listeners cache.Resources</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Translate 转化完成之后，会<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/syncer/envoy_translator_syncer.go#L156">调用 <code>SetSnapshot</code> 方法</a>把 <code>EnvoySnapshot</code> 放到本地缓存中。一旦这个缓存被 Set，就会触发 xDS 服务和 envoy 的数据同步。</p>
+<p>gloo 在初始化的时候会<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/xds/envoy.go#L27">初始化一个 <code>xdsServer</code></a>，这个 <code>xdsServer</code> 会<a target="_blank" rel="noopener" href="https://github.com/solo-io/solo-kit/blob/v0.31.0/pkg/api/v1/control-plane/server/generic_server.go#L52">实现下面的 interface</a>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Server is a collection of handlers for streaming discovery requests.</span></span><br><span class="line"><span class="keyword">type</span> Server <span class="keyword">interface</span> &#123;</span><br><span class="line">	<span class="comment">// StreamEnvoyV3 is the streaming method for Evnoy V3 XDS</span></span><br><span class="line">	StreamEnvoyV3(</span><br><span class="line">		stream StreamEnvoyV3,</span><br><span class="line">		defaultTypeURL <span class="type">string</span>,</span><br><span class="line">	) <span class="type">error</span></span><br><span class="line">	<span class="comment">// StreamSolo is the streaming method for Solo discovery</span></span><br><span class="line">	StreamSolo(</span><br><span class="line">		stream StreamSolo,</span><br><span class="line">		defaultTypeURL <span class="type">string</span>,</span><br><span class="line">	) <span class="type">error</span></span><br><span class="line">	<span class="comment">// Fetch is the universal fetch method.</span></span><br><span class="line">	FetchEnvoyV3(</span><br><span class="line">		context.Context,</span><br><span class="line">		*envoy_service_discovery_v3.DiscoveryRequest,</span><br><span class="line">	) (*envoy_service_discovery_v3.DiscoveryResponse, <span class="type">error</span>)</span><br><span class="line">	FetchSolo(</span><br><span class="line">		context.Context,</span><br><span class="line">		*sk_discovery.DiscoveryRequest,</span><br><span class="line">	) (*sk_discovery.DiscoveryResponse, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>然后会需要<a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.14.0/projects/gloo/pkg/xds/envoy.go#L30">利用这个 <code>xdsServer</code> 生成一个 <code>EnvoyServerV3</code></a>，这个才是真正和 Envoy 做交互的，这个 Server 需要实现 Envoy xDS 相关接口</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Server is a collection of handlers for streaming discovery requests.</span></span><br><span class="line"><span class="keyword">type</span> EnvoyServerV3 <span class="keyword">interface</span> &#123;</span><br><span class="line">	envoy_service_endpoint_v3.EndpointDiscoveryServiceServer</span><br><span class="line">	envoy_service_cluster_v3.ClusterDiscoveryServiceServer</span><br><span class="line">	envoy_service_route_v3.RouteDiscoveryServiceServer</span><br><span class="line">	envoy_service_listener_v3.ListenerDiscoveryServiceServer</span><br><span class="line">	envoy_service_discovery_v3.AggregatedDiscoveryServiceServer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果仔细查看这些接口的实现的话，会发现基本都是使用上面的 StramEnvoyV3 来实现的，这里就不列举了。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>以上就是 gloo 的一些源码的主要流程了，总体来说架构和思路还算清晰，但是代码可能有些复杂，我们在阅读 gloo 代码的时候需要注意的是，<code>*.sk.go</code> 的代码都是生成的代码，所以不用过于在乎这部分代码的写法，大致知道逻辑即可。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/gateway/" rel="tag"># gateway</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/09/Kubernetes-CentOS7-%E4%BD%8E%E7%89%88%E6%9C%AC-3-10-%E5%86%85%E6%A0%B8%E5%87%BA%E7%8E%B0-cannot-allocate-memory-%E9%97%AE%E9%A2%98/" rel="prev" title="Kubernetes CentOS 7 低版本 3.10 内核出现 cannot allocate memory 问题">
+      <i class="fa fa-chevron-left"></i> Kubernetes CentOS 7 低版本 3.10 内核出现 cannot allocate memory 问题
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/17/git-%E4%BD%BF%E7%94%A8-http-proxy-%E9%80%9A%E8%BF%87-ssh-%E5%92%8C%E4%BB%93%E5%BA%93%E4%BA%A4%E4%BA%92/" rel="next" title="git 使用 http proxy 通过 ssh 和仓库交互">
+      git 使用 http proxy 通过 ssh 和仓库交互 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">核心代码结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#gloo-%E7%9A%84%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-number">1.1.</span> <span class="nav-text">gloo 的核心概念</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83-Translate-%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">核心 Translate 流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#gloo-%E5%A6%82%E4%BD%95%E6%8A%8A-K8S-%E7%9A%84%E8%B5%84%E6%BA%90%E6%B1%87%E6%80%BB%E8%BD%AC%E6%8D%A2%E5%88%B0-Snapshot-%E4%B8%AD"><span class="nav-number">3.</span> <span class="nav-text">gloo 如何把 K8S 的资源汇总转换到 Snapshot 中</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%88%9D%E5%A7%8B%E5%8C%96%E5%90%84-Client-%E5%B9%B6-watch-%E5%85%B6%E4%B8%AD%E6%95%B0%E6%8D%AE%E5%8F%98%E5%8C%96"><span class="nav-number">3.1.</span> <span class="nav-text">1. 初始化各 Client 并 watch 其中数据变化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Watch-%E5%88%B0%E6%95%B0%E6%8D%AE%EF%BC%8C%E5%AF%B9%E6%95%B0%E6%8D%AE%E8%BF%9B%E8%A1%8C%E9%83%A8%E5%88%86%E5%A4%84%E7%90%86"><span class="nav-number">3.2.</span> <span class="nav-text">2. Watch 到数据，对数据进行部分处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%8A%8A-currentSnapshot-%E9%80%81%E5%85%A5-Snapshot-channel"><span class="nav-number">3.3.</span> <span class="nav-text">3. 把 currentSnapshot 送入 Snapshot channel</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#xDS-%E6%B5%81%E7%A8%8B"><span class="nav-number">4.</span> <span class="nav-text">xDS 流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Weixiao Huang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/weixiao-huang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;weixiao-huang" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Weixiao Huang</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v6.3.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+<style>
+.geDiagramContainer { width: 100% !important; }
+</style>
+</body>
+
+</html>

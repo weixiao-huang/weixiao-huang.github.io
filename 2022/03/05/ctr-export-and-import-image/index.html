@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('http://weixiaohuang.com').hostname,
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="一、起因在帮助客户做线上操作的时候，需要安装 寒武纪卡官方的 K8S device-plugin ，按照 daemonset yaml 部署 device-plugin 之后，发现 yaml 里写的 cambricon-k8s-device-plugin:v1.1.3 根本 pull 不下来 12$ docker pull cambricon-k8s-device-plugin:v1.1.3Err">
+<meta property="og:type" content="article">
+<meta property="og:title" content="利用老版本 containerd 自带的 ctr 命令进行镜像 tag 操作">
+<meta property="og:url" content="http://weixiaohuang.com/2022/03/05/ctr-export-and-import-image/index.html">
+<meta property="og:site_name" content="La campanella">
+<meta property="og:description" content="一、起因在帮助客户做线上操作的时候，需要安装 寒武纪卡官方的 K8S device-plugin ，按照 daemonset yaml 部署 device-plugin 之后，发现 yaml 里写的 cambricon-k8s-device-plugin:v1.1.3 根本 pull 不下来 12$ docker pull cambricon-k8s-device-plugin:v1.1.3Err">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2022-03-04T18:36:12.000Z">
+<meta property="article:modified_time" content="2024-09-18T13:47:43.101Z">
+<meta property="article:author" content="Weixiao Huang">
+<meta property="article:tag" content="container">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://weixiaohuang.com/2022/03/05/ctr-export-and-import-image/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>利用老版本 containerd 自带的 ctr 命令进行镜像 tag 操作 | La campanella</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">La campanella</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2022/03/05/ctr-export-and-import-image/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          利用老版本 containerd 自带的 ctr 命令进行镜像 tag 操作
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2022-03-05 02:36:12" itemprop="dateCreated datePublished" datetime="2022-03-05T02:36:12+08:00">2022-03-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2024-09-18 21:47:43" itemprop="dateModified" datetime="2024-09-18T21:47:43+08:00">2024-09-18</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Container/" itemprop="url" rel="index">
+                    <span itemprop="name">Container</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="一、起因"><a href="#一、起因" class="headerlink" title="一、起因"></a>一、起因</h1><p>在帮助客户做线上操作的时候，需要安装 <a target="_blank" rel="noopener" href="https://github.com/Cambricon/cambricon-k8s-device-plugin/tree/master/device-plugin">寒武纪卡官方的 K8S device-plugin</a> ，<br>按照 <a target="_blank" rel="noopener" href="https://github.com/Cambricon/cambricon-k8s-device-plugin/blob/v1.1.3/device-plugin/examples/cambricon-device-plugin-daemonset.yaml">daemonset yaml</a> 部署 device-plugin 之后，<br>发现 yaml 里写的 <a target="_blank" rel="noopener" href="https://github.com/Cambricon/cambricon-k8s-device-plugin/blob/v1.1.3/device-plugin/examples/cambricon-device-plugin-daemonset.yaml#L47">cambricon-k8s-device-plugin:v1.1.3</a> 根本 pull 不下来</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ docker pull cambricon-k8s-device-plugin:v1.1.3</span><br><span class="line">Error response from daemon: pull access denied <span class="keyword">for</span> cambricon-k8s-device-plugin, repository does not exist or may require <span class="string">&#x27;docker login&#x27;</span>: denied: requested access to the resource is denied</span><br></pre></td></tr></table></figure>
+
+<p>后面发现这个镜像<a target="_blank" rel="noopener" href="https://github.com/Cambricon/cambricon-k8s-device-plugin/blob/v1.1.3/device-plugin/README.md#download-and-build">需要自己打</a>。但是其实之前有离职的同学曾经打过一个镜像，放在了一台寒武纪机器的本地 containerd image 中，因此我们没必要再打一次镜像了，最好就直接复用这个镜像，把这个镜像 push 到一个内网 registry 上供所有机器使用。</p>
+<p>操作了一番之后发现 containerd 这个 ctr 操作和 docker 还是非常不一样的，一开始想尝试要不直接安装一个 <a target="_blank" rel="noopener" href="https://github.com/containerd/nerdctl">nerdctl</a> 得了，但是感觉这么小的一个需求没必要搞那么麻烦，因此就开始探究 ctr export 镜像并 push 的操作。</p>
+<h1 id="二、操作"><a href="#二、操作" class="headerlink" title="二、操作"></a>二、操作</h1><p><a target="_blank" rel="noopener" href="https://github.com/containerd/containerd/tree/main/cmd/ctr">ctr</a> 是 containerd 内置的一个查看镜像的命令，一般安装了 containerd 的话一定会安装 <code>ctr</code>。用 <code>ctr</code> 做镜像操作的话，需要用 <code>ctr image</code> 命令，或者方便一些，直接用 <code>ctr i</code>。如果查看镜像列表，就使用 <code>ctr i ls</code>。但其实我们执行了一下发现</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ ctr i <span class="built_in">ls</span></span><br><span class="line">REF TYPE DIGEST SIZE PLATFORMS LABELS</span><br></pre></td></tr></table></figure>
+
+<p>并没有得到什么结果。这里主要是因为 <code>ctr</code> 里面有一个 <code>namespace</code> 的概念，用 <code>ctr --help</code> 可以看到这个参数</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ ctr --<span class="built_in">help</span></span><br><span class="line">...</span><br><span class="line">--namespace value, -n value  namespace to use with commands (default: <span class="string">&quot;default&quot;</span>) [<span class="variable">$CONTAINERD_NAMESPACE</span>]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>我们的镜像是给 k8s 使用的，k8s 会使用 <code>k8s.io</code> 这个 <code>namespace</code> 下的镜像，因此我们需要加一个 <code>-n k8s.io</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ ctr -n k8s.io i <span class="built_in">ls</span> -q | grep cambricon-k8s-device-plugin:v1.1.3</span><br><span class="line">172.1.1.34:5000/library/cambricon-k8s-device-plugin:v1.1.3</span><br></pre></td></tr></table></figure>
+
+<p>这里使用 <code>-q</code> 参数只打印了镜像名。然后我们找到了存在在这台寒武纪机器上的这个 <code>172.1.1.34:5000/library/cambricon-k8s-device-plugin:v1.1.3</code> 镜像。现在我们的目的是把这个镜像 tag 成 <code>docker-registry.i.demo/library/cambricon-k8s-device-plugin:v1.1.3</code>，其中 <code>docker-registry.i.demo</code> 姑且当做是内网 docker-registry 的域名地址。</p>
+<p>经过查阅资料发现，<code>ctr</code> 在<a target="_blank" rel="noopener" href="https://github.com/containerd/containerd/pull/3388">后续版本合并了 <code>tag</code> 命令</a>，然而一个不幸的消息是我们的 <code>ctr</code> 版本是 <a target="_blank" rel="noopener" href="https://github.com/containerd/containerd/tree/v1.2.6">v1.2.6</a>，似乎并没有集成 <code>tag</code> 命令，于是只能另辟蹊径。</p>
+<p>后来发现，我们可以尝试先把镜像 <code>export</code> 出来成为 tar 包，然后再 <code>import</code> 回去，<code>ctr</code> 在 import 镜像的时候支持重新写个名字。这样看来这么绕一下看起来是可行的：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$ ctr -n k8s.io i <span class="built_in">export</span> cambricon-k8s-device-plugin-v1.1.3.tar 172.1.1.34:5000/library/cambricon-k8s-device-plugin:v1.1.3</span><br><span class="line">$ ctr -n k8s.io i import cambricon-k8s-device-plugin-v1.1.3.tar --base-name docker-registry.i.demo/library/cambricon-k8s-device-plugin</span><br><span class="line">unpacking docker-registry.i.demo/library/cambricon-k8s-device-plugin:v1.1.3 (sha256:4b67b0f9c5c7fee7ed80409b2df4f68d4fa5dd170af88e7281fab7c88cbbd62a)...<span class="keyword">done</span></span><br><span class="line">$ ctr -n k8s.io i <span class="built_in">ls</span> -q | grep docker-registry.i.demo</span><br><span class="line">docker-registry.i.demo/library/cambricon-k8s-device-plugin:v1.1.3</span><br></pre></td></tr></table></figure>
+
+<p>可以看到非常成功，我们成功做了一个 tag 操作。虽然看起来比较蠢，似乎下载一个新版的 ctr 就可以实现。但是如果客户环境不通互联网的话，这类 hack 操作还是比较好的救命稻草。</p>
+<p>之后我们就可以使用 <code>ctr i push</code> 把镜像 push 上去了</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ ctr -n k8s.io i push docker-registry.i.demo/library/cambricon-k8s-device-plugin:v1.1.3</span><br></pre></td></tr></table></figure>
+
+<p>大功告成</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/container/" rel="tag"># container</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/01/11/MacOS-SSH-Linux-Chinese-Locale/" rel="prev" title="记一次 MacOS SSH Linux 之后出现中文乱码">
+      <i class="fa fa-chevron-left"></i> 记一次 MacOS SSH Linux 之后出现中文乱码
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/04/upgrade-go-from-1-15-to-1-17-bug/" rel="next" title="尝试把 Golang 从 1.15 升级到 1.16 以上时遇到的一些坑">
+      尝试把 Golang 从 1.15 升级到 1.16 以上时遇到的一些坑 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E8%B5%B7%E5%9B%A0"><span class="nav-number">1.</span> <span class="nav-text">一、起因</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E6%93%8D%E4%BD%9C"><span class="nav-number">2.</span> <span class="nav-text">二、操作</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Weixiao Huang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/weixiao-huang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;weixiao-huang" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Weixiao Huang</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v6.3.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+<style>
+.geDiagramContainer { width: 100% !important; }
+</style>
+</body>
+
+</html>

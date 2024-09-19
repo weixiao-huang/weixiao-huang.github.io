@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('http://weixiaohuang.com').hostname,
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="Bazel 是 Google 开发的一款跨平台编译工具，是内部 blaze 的开源版本。本文不探讨 bazel 的使用，如果想了解如何用 Bazel 构建 go project，可以参考 这篇文章。本文主要探讨 Bazel 开发 go project 和纯使用 go modules 开发会有哪些优劣比较，我们如何去同时利用二者的优劣。 1. Bazel 开发的优势1.1. 多语言支持利用 Baze">
+<meta property="og:type" content="article">
+<meta property="og:title" content="浅谈 bazel 开发大型 go project 的优劣">
+<meta property="og:url" content="http://weixiaohuang.com/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/index.html">
+<meta property="og:site_name" content="La campanella">
+<meta property="og:description" content="Bazel 是 Google 开发的一款跨平台编译工具，是内部 blaze 的开源版本。本文不探讨 bazel 的使用，如果想了解如何用 Bazel 构建 go project，可以参考 这篇文章。本文主要探讨 Bazel 开发 go project 和纯使用 go modules 开发会有哪些优劣比较，我们如何去同时利用二者的优劣。 1. Bazel 开发的优势1.1. 多语言支持利用 Baze">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2020-04-25T14:22:11.000Z">
+<meta property="article:modified_time" content="2024-09-18T13:47:43.102Z">
+<meta property="article:author" content="Weixiao Huang">
+<meta property="article:tag" content="development">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://weixiaohuang.com/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>浅谈 bazel 开发大型 go project 的优劣 | La campanella</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">La campanella</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          浅谈 bazel 开发大型 go project 的优劣
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-04-25 22:22:11" itemprop="dateCreated datePublished" datetime="2020-04-25T22:22:11+08:00">2020-04-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2024-09-18 21:47:43" itemprop="dateModified" datetime="2024-09-18T21:47:43+08:00">2024-09-18</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Development/" itemprop="url" rel="index">
+                    <span itemprop="name">Development</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a target="_blank" rel="noopener" href="https://bazel.build/">Bazel</a> 是 Google 开发的一款跨平台编译工具，是内部 blaze 的开源版本。本文不探讨 bazel 的使用，如果想了解如何用 Bazel 构建 go project，可以参考 <a target="_blank" rel="noopener" href="https://www.qtmuniao.com/2019/12/07/bazel-build-golang/">这篇文章</a>。本文主要探讨 Bazel 开发 go project 和纯使用 go modules 开发会有哪些优劣比较，我们如何去同时利用二者的优劣。</p>
+<h1 id="1-Bazel-开发的优势"><a href="#1-Bazel-开发的优势" class="headerlink" title="1. Bazel 开发的优势"></a>1. Bazel 开发的优势</h1><h2 id="1-1-多语言支持"><a href="#1-1-多语言支持" class="headerlink" title="1.1. 多语言支持"></a>1.1. 多语言支持</h2><p>利用 Bazel 开发的 go project 能够支持非常好的可扩展性，对多语言的支持也比较友好，如果是一个公司内部的大项目，希望统一风格，统一 CI，统一构建，那么会存在这种状况：以 go 语言为主，其他语言为辅助。举一个例子，如果你的项目中包含了前端，那么 Bazel 的多语言处理就可以非常方便的让你同时编译 go project 和 frontend project。同理，如果你的项目中有 C++ 等其他语言也可以类似的用 Bazel 统一处理。这样在 monorepo 的管理上会方便很多。</p>
+<h2 id="1-2-便于复用缓存和其他-bazel-的功能"><a href="#1-2-便于复用缓存和其他-bazel-的功能" class="headerlink" title="1.2. 便于复用缓存和其他 bazel 的功能"></a>1.2. 便于复用缓存和其他 bazel 的功能</h2><p>bazel 自身是支持 remote cache 和 remote executor，个人认为 remote cache 功能是比较易用的一个功能。假如我们在 CI 中编译 go 项目，其实很难做到 go remote cache，基本上每次都得重新编译，但是 bazel 可以通过搭建 remote cache 服务重用缓存，极大的加大编译的速度。</p>
+<p>另外，如果机器比较多，也可以使用 bazel 的 remote executor 服务搭建代码执行集群，让远端来跑 bazel 代码，这样也可以加速 go 的构建。不过实践下来一般 remote executor 可能不会比 remote executor 加速太多，除非专门对 build cluster 做过优化。</p>
+<h2 id="1-3-镜像打包便捷而可复现"><a href="#1-3-镜像打包便捷而可复现" class="headerlink" title="1.3. 镜像打包便捷而可复现"></a>1.3. 镜像打包便捷而可复现</h2><p>如果是一个 go modules 项目，那么镜像打包我可能就得写这么一个 <code>Dockerfile</code></p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.14</span>.<span class="number">2</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ENV</span> GOPATH=/go</span><br><span class="line"><span class="keyword">ENV</span> GOPROXY=https://goproxy.cn,direct</span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> . /go/src/my.project</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="language-bash"> /go/src/my.project</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> go build -o main ./</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">FROM</span> busybox</span><br><span class="line"></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --from=0 /go/src/my.project/main /usr/local/bin</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">CMD</span><span class="language-bash"> [<span class="string">&quot;main&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到，这个 <code>Dockerfile</code> 的问题在于，在 ci 上每次编译都会导致重新编译，不会有任何的缓存，这就回到了上一个问题——无法复用缓存。</p>
+<p>但是如果使用 Bazel，我们就可以使用 Bazel rules_docker 的 <code>container_image</code> 和 <code>container_push</code> 方法，实现镜像的打包和上传。而且 rules_docker 本身是不需要有 docker 环境的，<strong>因此我们的 ci 甚至不用装 docker，只需要一个 bazel 就行了</strong>。</p>
+<h2 id="1-4-第三方包引用和更改比较方便"><a href="#1-4-第三方包引用和更改比较方便" class="headerlink" title="1.4. 第三方包引用和更改比较方便"></a>1.4. 第三方包引用和更改比较方便</h2><p>我自己并不是一个 go modules 深度用户，所以假如我们引用了一个第三方包，要对第三方包打 patch，就会比较麻烦，当然可以说，我们可以使用 vendor，但这并不符合 go modules 的哲学，那这样其实就会比较麻烦。</p>
+<p>bazel 利用 gazelle 把所有第三方包显式的声明在 WORKSPACE 中，如果需要改动，只需给这个包加上 <code>.patch</code> 文件的 patch 即可实现更改，这样其实比起 vendor 来说更改也更容易被记录。</p>
+<h1 id="2-Bazel-开发相较于-go-modules-的劣势"><a href="#2-Bazel-开发相较于-go-modules-的劣势" class="headerlink" title="2. Bazel 开发相较于 go modules 的劣势"></a>2. Bazel 开发相较于 go modules 的劣势</h1><h2 id="2-1-IDE-提示没有-go-modules-友好"><a href="#2-1-IDE-提示没有-go-modules-友好" class="headerlink" title="2.1 IDE 提示没有 go modules 友好"></a>2.1 IDE 提示没有 go modules 友好</h2><p>众所周知，go modules 很多 IDE 有非常好的支持，例如 vscode 和 goland，对于跳转等待支持得也非常好。但是 Bazel 就难办了，目前我尝试下来，只有 goland（或者 Jetbrains 系列） 的 bazel 插件是比较完善的，跳转基本能支持。</p>
+<p>另一个方面，由于 Bazel 的尿性，每次本地执行 bazel build 会删除某些不必要的执行结果，因此可能会导致本地自己执行 bazel build 等指令之后，需要在 goland 中重新 sync 一下，这样会造成一些时间成本。</p>
+<h2 id="2-2-Bazel-依赖管理错乱"><a href="#2-2-Bazel-依赖管理错乱" class="headerlink" title="2.2 Bazel 依赖管理错乱"></a>2.2 Bazel 依赖管理错乱</h2><p>go modules 有自己一套依赖管理，但是 Bazel 的依赖，很多时候可能都是无脑 gazelle update 添加依赖，不会考虑依赖之间的版本关系，因此会导致 Bazel 项目中的版本依赖很错乱。</p>
+<h2 id="2-3-一些-go-modules-相关的工具无法支持"><a href="#2-3-一些-go-modules-相关的工具无法支持" class="headerlink" title="2.3 一些 go modules 相关的工具无法支持"></a>2.3 一些 go modules 相关的工具无法支持</h2><p>一个例子就是 <a target="_blank" rel="noopener" href="https://github.com/golangci/golangci-lint">golangci-lint</a> 这个包。这个东西是不支持 Bazel 的，因此只有 go modules 项目可以支持。</p>
+<h2 id="2-4-有一定的学习成本"><a href="#2-4-有一定的学习成本" class="headerlink" title="2.4 有一定的学习成本"></a>2.4 有一定的学习成本</h2><p>对于团队中的同学来说，如何使用 Bazel，如何添加依赖，是有一定的学习成本的。</p>
+<h1 id="3-同时支持-Bazel-和-go-modules"><a href="#3-同时支持-Bazel-和-go-modules" class="headerlink" title="3. 同时支持 Bazel 和 go modules"></a>3. 同时支持 Bazel 和 go modules</h1><p>可以看到二者有他的优劣，我们能否合并二者，取长补短，发挥二者的优势呢？答案是肯定的。</p>
+<p>我们可以以 bazel 为主，go modules 为辅。以下针对上面说的 Bazel 3 个劣势来说明如何解决。</p>
+<p>对于第一个劣势，虽然我个人觉得 goland 的 Bazel 插件其实还行，但是如果实在不能忍受，可以直接使用我们提供的 go.mod 来基于 go modules 开发。</p>
+<p>对于第二个劣势，鉴于 bazel-gazelle 的 <code>update</code> 命令有 <code>--from-file=go.mod</code> flag，使得我们可以从 go.mod 中生成 Bazel 版本依赖，这样就可以保证 Bazel 的依赖管理和 go modules 的依赖管理是一致的，不会使得依赖管理错乱，解决了上面的第二个问题。这个技巧在 k8s <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra/blob/v0.0.3/hack/update-deps.sh">repo-infra 的 update-deps.sh</a> 中有使用。</p>
+<p>对于第三个劣势，我们可以书写一些 Bazel 脚本，在 Bazel 的沙箱中使用 go modules 模式来使用 golangci-lint，这个方式在 k8s <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra/blob/v0.0.3/hack/verify-golangci-lint.sh">repo-infra 的 verify-golangci-lint.sh</a> 中有使用。</p>
+<p>对于第四个劣势，就要求项目维护者提供详尽的文档说明，如何 update 依赖，如何处理 Bazel 的一些问题，如何优化项目结构。当然我认为这并不是太大的问题，因为对于一个大项目来说，规范是必须的。</p>
+<p>另外，k8s 有使用 Bazel 来构建 go projects，他们也采用的是 go modules 和 Bazel 同时支持的方案来实现。这样对于开发者也非常友好，同时对于大项目的管理、构建和测试也非常的友好。</p>
+<p>由此，我书写了一个 <a target="_blank" rel="noopener" href="https://github.com/weixiao-huang/bazel-go-scaffold.git">bazel-go-scaffold</a>，基于 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/repo-infra.git">repo-infra</a> 扩展了一个基于 Bazel 的 go 大项目模板，供大家参考</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/development/" rel="tag"># development</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/09/03/%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%80%E4%B8%AA%E6%AF%94%E8%BE%83%E8%88%92%E9%80%82%E7%9A%84%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/" rel="prev" title="初始化一个比较舒适的开发环境">
+      <i class="fa fa-chevron-left"></i> 初始化一个比较舒适的开发环境
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/07/21/gloo-1-5-5-%E7%89%88%E6%9C%AC%E4%BF%AE%E5%A4%8D-envoy-multiple-header-%E9%97%AE%E9%A2%98/" rel="next" title="gloo 1.5.5 版本修复 envoy multiple header 问题">
+      gloo 1.5.5 版本修复 envoy multiple header 问题 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-Bazel-%E5%BC%80%E5%8F%91%E7%9A%84%E4%BC%98%E5%8A%BF"><span class="nav-number">1.</span> <span class="nav-text">1. Bazel 开发的优势</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-1-%E5%A4%9A%E8%AF%AD%E8%A8%80%E6%94%AF%E6%8C%81"><span class="nav-number">1.1.</span> <span class="nav-text">1.1. 多语言支持</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-2-%E4%BE%BF%E4%BA%8E%E5%A4%8D%E7%94%A8%E7%BC%93%E5%AD%98%E5%92%8C%E5%85%B6%E4%BB%96-bazel-%E7%9A%84%E5%8A%9F%E8%83%BD"><span class="nav-number">1.2.</span> <span class="nav-text">1.2. 便于复用缓存和其他 bazel 的功能</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-3-%E9%95%9C%E5%83%8F%E6%89%93%E5%8C%85%E4%BE%BF%E6%8D%B7%E8%80%8C%E5%8F%AF%E5%A4%8D%E7%8E%B0"><span class="nav-number">1.3.</span> <span class="nav-text">1.3. 镜像打包便捷而可复现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-4-%E7%AC%AC%E4%B8%89%E6%96%B9%E5%8C%85%E5%BC%95%E7%94%A8%E5%92%8C%E6%9B%B4%E6%94%B9%E6%AF%94%E8%BE%83%E6%96%B9%E4%BE%BF"><span class="nav-number">1.4.</span> <span class="nav-text">1.4. 第三方包引用和更改比较方便</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-Bazel-%E5%BC%80%E5%8F%91%E7%9B%B8%E8%BE%83%E4%BA%8E-go-modules-%E7%9A%84%E5%8A%A3%E5%8A%BF"><span class="nav-number">2.</span> <span class="nav-text">2. Bazel 开发相较于 go modules 的劣势</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#2-1-IDE-%E6%8F%90%E7%A4%BA%E6%B2%A1%E6%9C%89-go-modules-%E5%8F%8B%E5%A5%BD"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 IDE 提示没有 go modules 友好</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-2-Bazel-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86%E9%94%99%E4%B9%B1"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Bazel 依赖管理错乱</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-3-%E4%B8%80%E4%BA%9B-go-modules-%E7%9B%B8%E5%85%B3%E7%9A%84%E5%B7%A5%E5%85%B7%E6%97%A0%E6%B3%95%E6%94%AF%E6%8C%81"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 一些 go modules 相关的工具无法支持</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-4-%E6%9C%89%E4%B8%80%E5%AE%9A%E7%9A%84%E5%AD%A6%E4%B9%A0%E6%88%90%E6%9C%AC"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 有一定的学习成本</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-%E5%90%8C%E6%97%B6%E6%94%AF%E6%8C%81-Bazel-%E5%92%8C-go-modules"><span class="nav-number">3.</span> <span class="nav-text">3. 同时支持 Bazel 和 go modules</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Weixiao Huang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/weixiao-huang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;weixiao-huang" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Weixiao Huang</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v6.3.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+<style>
+.geDiagramContainer { width: 100% !important; }
+</style>
+</body>
+
+</html>

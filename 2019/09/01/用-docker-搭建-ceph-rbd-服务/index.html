@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('http://weixiaohuang.com').hostname,
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="0. 安装 docker 和 docker-compose安装 docker 请参考  安装 docker 和 k8s 相关命令行工具  同时参考 daocloud 上的 docker-compose 安装文档，可以使用下述语句安装 docker-compose： 123curl -L https:&#x2F;&#x2F;get.daocloud.io&#x2F;docker&#x2F;compose&#x2F;releases&#x2F;download">
+<meta property="og:type" content="article">
+<meta property="og:title" content="用 docker 搭建 ceph rbd 服务">
+<meta property="og:url" content="http://weixiaohuang.com/2019/09/01/%E7%94%A8-docker-%E6%90%AD%E5%BB%BA-ceph-rbd-%E6%9C%8D%E5%8A%A1/index.html">
+<meta property="og:site_name" content="La campanella">
+<meta property="og:description" content="0. 安装 docker 和 docker-compose安装 docker 请参考  安装 docker 和 k8s 相关命令行工具  同时参考 daocloud 上的 docker-compose 安装文档，可以使用下述语句安装 docker-compose： 123curl -L https:&#x2F;&#x2F;get.daocloud.io&#x2F;docker&#x2F;compose&#x2F;releases&#x2F;download">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2019-09-01T01:32:17.000Z">
+<meta property="article:modified_time" content="2024-09-18T13:47:43.102Z">
+<meta property="article:author" content="Weixiao Huang">
+<meta property="article:tag" content="container">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://weixiaohuang.com/2019/09/01/%E7%94%A8-docker-%E6%90%AD%E5%BB%BA-ceph-rbd-%E6%9C%8D%E5%8A%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>用 docker 搭建 ceph rbd 服务 | La campanella</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">La campanella</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2019/09/01/%E7%94%A8-docker-%E6%90%AD%E5%BB%BA-ceph-rbd-%E6%9C%8D%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          用 docker 搭建 ceph rbd 服务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-09-01 09:32:17" itemprop="dateCreated datePublished" datetime="2019-09-01T09:32:17+08:00">2019-09-01</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2024-09-18 21:47:43" itemprop="dateModified" datetime="2024-09-18T21:47:43+08:00">2024-09-18</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Container/" itemprop="url" rel="index">
+                    <span itemprop="name">Container</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="0-安装-docker-和-docker-compose"><a href="#0-安装-docker-和-docker-compose" class="headerlink" title="0. 安装 docker 和 docker-compose"></a>0. 安装 docker 和 docker-compose</h1><p>安装 docker 请参考 </p>
+<a href="/2019/08/31/%E5%9C%A8%E5%9B%BD%E5%86%85%E5%88%A9%E7%94%A8-kubeadm-%E5%9C%A8-Ubuntu-%E4%B8%AD%E5%9B%BD%E5%AE%89%E8%A3%85%E5%8D%95-master-k8s-%E9%9B%86%E7%BE%A4/" title="安装 docker 和 k8s 相关命令行工具">安装 docker 和 k8s 相关命令行工具</a>
+
+<p>同时参考 <a target="_blank" rel="noopener" href="http://get.daocloud.io/#install-compose">daocloud 上的 docker-compose 安装文档</a>，可以使用下述语句安装 docker-compose：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">curl -L https://get.daocloud.io/docker/compose/releases/download/1.24.1/docker-compose-`<span class="built_in">uname</span> -s`-`<span class="built_in">uname</span> -m` &gt; /tmp/docker-compose</span><br><span class="line"><span class="built_in">chmod</span> +x /tmp/docker-compose</span><br><span class="line">sudo <span class="built_in">mv</span> /tmp/docker-compose /usr/local/bin/docker-compose</span><br></pre></td></tr></table></figure>
+
+<h1 id="1-利用-docker-compose-部署单机单-osd-ceph"><a href="#1-利用-docker-compose-部署单机单-osd-ceph" class="headerlink" title="1. 利用 docker-compose 部署单机单 osd ceph"></a>1. 利用 docker-compose 部署单机单 osd ceph</h1><p>主要参考<a target="_blank" rel="noopener" href="https://hub.docker.com/r/ceph/daemon/">官方 docker 镜像文档</a>，但最新的 <code>ceph/daemon</code> 镜像似乎有点奇怪的 bug，导致 osd 起不来，因此，我们使用一个 2019年年初的镜像，已经 tag 成 <code>huangwx/ceph-daemon</code> 供使用。ceph 的 docker-compose 文件如下：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># docker-compose-ceph.yaml</span></span><br><span class="line"><span class="attr">version:</span> <span class="string">&#x27;3.7&#x27;</span></span><br><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">ceph-mon:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-mon</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">mon</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">MON_IP=$&#123;MON_IP&#125;</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">CEPH_PUBLIC_NETWORK=$&#123;CEPH_PUBLIC_NETWORK&#125;</span></span><br><span class="line">  <span class="attr">ceph-mgr:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-mgr</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">mgr</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">ceph-mon</span></span><br><span class="line">  <span class="attr">ceph-osd:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">huangwx/ceph-daemon</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">host</span></span><br><span class="line">    <span class="attr">privileged:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">./ceph:/etc/ceph</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">cephdata:/var/lib/ceph</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">ceph-osd</span></span><br><span class="line">    <span class="attr">command:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">osd</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">ceph-mgr</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">OSD_TYPE=directory</span></span><br><span class="line">    <span class="attr">pid:</span> <span class="string">host</span></span><br><span class="line"><span class="attr">volumes:</span></span><br><span class="line">  <span class="attr">cephdata:</span> &#123;&#125;</span><br><span class="line"><span class="attr">networks:</span></span><br><span class="line">  <span class="attr">default:</span></span><br><span class="line">    <span class="attr">external:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">host</span></span><br></pre></td></tr></table></figure>
+
+<p>在 <code>docker-compose-ceph.yaml</code> 的相同目录下新建一个 <code>ceph</code> 目录</p>
+<p>注意设置 <code>MON_IP</code> 和 <code>CEPH_PUBLIC_NETWORK</code> 两个环境变量，两个环境变量分别为主机 IP 地址，允许访问 ceph 的网段。下面仅作为演示，MON_IP 和 CEPH_PUBLIC_NETWORK 请设置成你自己的：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">export MON_IP=192.168.2.2 CEPH_PUBLIC_NETWORK=192.168.0.0/16</span><br></pre></td></tr></table></figure>
+
+<p>同时请确认 <code>./ceph</code> 目录下没有任何 ceph 的配置文件，然后启动 ceph：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker-compose -f docker-compose-ceph.yaml up -d</span><br></pre></td></tr></table></figure>
+
+<p>启动后会在 <code>./ceph</code> 目录下生成下述3个 ceph 配置文件：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ceph.client.admin.keyring</span><br><span class="line">ceph.conf</span><br><span class="line">ceph.mon.keyring</span><br></pre></td></tr></table></figure>
+
+<p>启动成功之后，稍等片刻，然后执行下述命令 check ceph 是否正常</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">$ docker exec -it ceph-mon ceph -s</span><br><span class="line">  cluster:</span><br><span class="line">    id:     e3cdecce-16f7-4c0f-9909-ab94a5e7c1b5</span><br><span class="line">    health: HEALTH_OK</span><br><span class="line"></span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum new</span><br><span class="line">    mgr: new(active)</span><br><span class="line">    osd: 1 osds: 1 up, 1 in</span><br><span class="line"></span><br><span class="line">  data:</span><br><span class="line">    pools:   0 pools, 0 pgs</span><br><span class="line">    objects: 0  objects, 0 B</span><br><span class="line">    usage:   2.9 GiB used, 1020 GiB / 1023 GiB avail</span><br><span class="line">    pgs:</span><br></pre></td></tr></table></figure>
+
+<p>如果成功看到类似上述的返回，即说明成功。</p>
+<h1 id="2-初始化-rbd-配置"><a href="#2-初始化-rbd-配置" class="headerlink" title="2. 初始化 rbd 配置"></a>2. 初始化 rbd 配置</h1><p>接下来初始化 rbd 配置。由于是单 osd 单 monitor 集群，因此我们需要创建并设置 rbd:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool create rbd 64 64 replicated</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool application <span class="built_in">enable</span> rbd rbd</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon rbd pool init rbd</span><br><span class="line">docker <span class="built_in">exec</span> -it ceph-mon ceph osd pool <span class="built_in">set</span> rbd size 1</span><br></pre></td></tr></table></figure>
+
+<p>即可成功初始化并设置 rbd，可以利用 <code>rbd ls</code> 命令 check 是否能够不卡住返回：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker exec -it ceph-mon rbd ls</span><br></pre></td></tr></table></figure>
+
+<p>如果能够成功不卡住返回空值，说明 rbd 集群正常，执行 <code>ceph -s</code> 可以看到初始化了 1 个 pool 和 64 个 pgs：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">$ docker exec -it ceph-mon ceph -s</span><br><span class="line">  cluster:</span><br><span class="line">    id:     e3cdecce-16f7-4c0f-9909-ab94a5e7c1b5</span><br><span class="line">    health: HEALTH_OK</span><br><span class="line"></span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum new</span><br><span class="line">    mgr: new(active)</span><br><span class="line">    osd: 1 osds: 1 up, 1 in</span><br><span class="line"></span><br><span class="line">  data:</span><br><span class="line">    pools:   1 pools, 64 pgs</span><br><span class="line">    objects: 0  objects, 0 B</span><br><span class="line">    usage:   2.9 GiB used, 1020 GiB / 1023 GiB avail</span><br><span class="line">    pgs:     64 active+clean</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/container/" rel="tag"># container</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/08/31/%E5%9C%A8%E5%9B%BD%E5%86%85%E5%88%A9%E7%94%A8-kubeadm-%E5%9C%A8-Ubuntu-%E4%B8%AD%E5%9B%BD%E5%AE%89%E8%A3%85%E5%8D%95-master-k8s-%E9%9B%86%E7%BE%A4/" rel="prev" title="在国内利用 kubeadm 在 Ubuntu 中安装单 master k8s 集群">
+      <i class="fa fa-chevron-left"></i> 在国内利用 kubeadm 在 Ubuntu 中安装单 master k8s 集群
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/09/03/%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%80%E4%B8%AA%E6%AF%94%E8%BE%83%E8%88%92%E9%80%82%E7%9A%84%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/" rel="next" title="初始化一个比较舒适的开发环境">
+      初始化一个比较舒适的开发环境 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#0-%E5%AE%89%E8%A3%85-docker-%E5%92%8C-docker-compose"><span class="nav-number">1.</span> <span class="nav-text">0. 安装 docker 和 docker-compose</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#1-%E5%88%A9%E7%94%A8-docker-compose-%E9%83%A8%E7%BD%B2%E5%8D%95%E6%9C%BA%E5%8D%95-osd-ceph"><span class="nav-number">2.</span> <span class="nav-text">1. 利用 docker-compose 部署单机单 osd ceph</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-%E5%88%9D%E5%A7%8B%E5%8C%96-rbd-%E9%85%8D%E7%BD%AE"><span class="nav-number">3.</span> <span class="nav-text">2. 初始化 rbd 配置</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Weixiao Huang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/weixiao-huang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;weixiao-huang" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Weixiao Huang</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v6.3.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+<style>
+.geDiagramContainer { width: 100% !important; }
+</style>
+</body>
+
+</html>

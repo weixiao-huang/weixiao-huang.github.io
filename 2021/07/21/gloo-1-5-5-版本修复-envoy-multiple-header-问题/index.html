@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('http://weixiaohuang.com').hostname,
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="问题背景gloo 是一个开源的基于 envoy 的云原生 api 网关，其用 K8S 的 CRD 对于网关路由表等进行了一些封装，使得能通过云原生的方式配置 api 网关，提供灵活的 gateway 网络管控。 我们在项目中使用 gloo 的过程中，将其作为最上层的网关，对接了一个 kubernetes apiserver 的 upstream，在对接过程中，遇到了 这个问题，主要是我们发现 en">
+<meta property="og:type" content="article">
+<meta property="og:title" content="gloo 1.5.5 版本修复 envoy multiple header 问题">
+<meta property="og:url" content="http://weixiaohuang.com/2021/07/21/gloo-1-5-5-%E7%89%88%E6%9C%AC%E4%BF%AE%E5%A4%8D-envoy-multiple-header-%E9%97%AE%E9%A2%98/index.html">
+<meta property="og:site_name" content="La campanella">
+<meta property="og:description" content="问题背景gloo 是一个开源的基于 envoy 的云原生 api 网关，其用 K8S 的 CRD 对于网关路由表等进行了一些封装，使得能通过云原生的方式配置 api 网关，提供灵活的 gateway 网络管控。 我们在项目中使用 gloo 的过程中，将其作为最上层的网关，对接了一个 kubernetes apiserver 的 upstream，在对接过程中，遇到了 这个问题，主要是我们发现 en">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2021-07-20T16:02:58.000Z">
+<meta property="article:modified_time" content="2024-09-18T13:47:43.101Z">
+<meta property="article:author" content="Weixiao Huang">
+<meta property="article:tag" content="gateway">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://weixiaohuang.com/2021/07/21/gloo-1-5-5-%E7%89%88%E6%9C%AC%E4%BF%AE%E5%A4%8D-envoy-multiple-header-%E9%97%AE%E9%A2%98/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>gloo 1.5.5 版本修复 envoy multiple header 问题 | La campanella</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">La campanella</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="en">
+    <link itemprop="mainEntityOfPage" href="http://weixiaohuang.com/2021/07/21/gloo-1-5-5-%E7%89%88%E6%9C%AC%E4%BF%AE%E5%A4%8D-envoy-multiple-header-%E9%97%AE%E9%A2%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Weixiao Huang">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="La campanella">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          gloo 1.5.5 版本修复 envoy multiple header 问题
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2021-07-21 00:02:58" itemprop="dateCreated datePublished" datetime="2021-07-21T00:02:58+08:00">2021-07-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2024-09-18 21:47:43" itemprop="dateModified" datetime="2024-09-18T21:47:43+08:00">2024-09-18</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Gateway/" itemprop="url" rel="index">
+                    <span itemprop="name">Gateway</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h1><p><a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo">gloo</a> 是一个开源的基于 envoy 的云原生 api 网关，其用 K8S 的 CRD 对于网关路由表等进行了一些封装，使得能通过云原生的方式配置 api 网关，提供灵活的 gateway 网络管控。</p>
+<p>我们在项目中使用 gloo 的过程中，将其作为最上层的网关，对接了一个 kubernetes apiserver 的 upstream，在对接过程中，遇到了 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/issues/2983">这个问题</a>，主要是我们发现 envoy 的 ext_authz 模块不支持把 append response header，只支持 set response header，然而 kube-apiserver 有一个 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/access-authn-authz/authentication/#authenticating-proxy">–requestheader-group-headers</a> 的概念，通过这个 Header 能读到用户的 Groups，但是如果采用 envoy 的 ext_authz 模块的话，就会导致最终只读到一个 Group，而不能拿到用户所有的 Groups。</p>
+<h1 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h1><h2 id="1-PR"><a href="#1-PR" class="headerlink" title="1. PR"></a>1. PR</h2><p>我给 envoy 官方提了一个 <a target="_blank" rel="noopener" href="https://github.com/envoyproxy/envoy/pull/11158">PR</a>，目前已经合并，这个 PR 合并之后，我又给 gloo 项目提了一个 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/pull/5726">PR</a>，这个 PR 已经被合并了，gloo 1.10 版本终于支持了相关的功能。</p>
+<h2 id="2-低版本打-patch"><a href="#2-低版本打-patch" class="headerlink" title="2. 低版本打 patch"></a>2. 低版本打 patch</h2><p>不幸的是，我们的线上环境还在用 gloo 1.5.5 版本，还没有相关的功能，因此需要手动给 1.5.5 版本打一个小 patch。</p>
+<p>为了更方便的打 patch 和使用，我们就没有采取 PR 中的方式来做，而是直接没有考虑兼容性，直接给 Set header 的部分加了一个 append 功能，牺牲了兼容性，但是改起来更加方便了，具体的改动步骤如下</p>
+<h3 id="2-1-循线追踪"><a href="#2-1-循线追踪" class="headerlink" title="2.1 循线追踪"></a>2.1 循线追踪</h3><p>问题发生在 gateway-proxy 相关的 pod 中，因此我们需要改的是 gateway-proxy 的 image。即 <code>solo-io/gloo-envoy-wrapper</code> 这个镜像。而 <code>solo-io/gloo-envoy-wrapper</code> 的 base 镜像是 <code>solo-io/envoy-gloo</code>，这个镜像的主要源头在 <a target="_blank" rel="noopener" href="https://github.com/solo-io/envoy-gloo">envoy-gloo</a> 这个项目中，下面简单说一下如何查询并做代码改动：</p>
+<ol>
+<li>查看 <a target="_blank" rel="noopener" href="https://github.com/solo-io/gloo/blob/v1.5.5/Makefile#L32">https://github.com/solo-io/gloo/blob/v1.5.5/Makefile#L32</a> 可以看出，<code>envoy-gloo</code> 镜像版本为 <code>quay.io/solo-io/envoy-gloo:1.16.0-rc4</code></li>
+<li>查看 <a target="_blank" rel="noopener" href="https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/bazel/repository_locations.bzl#L4">https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/bazel/repository_locations.bzl#L4</a> 可以看出 envoy 版本用了 <a target="_blank" rel="noopener" href="https://github.com/yuval-k/envoy">https://github.com/yuval-k/envoy</a> 的 8f4d759cb53493159bcba921d6109eace48cb6da commit</li>
+<li>查看 <a target="_blank" rel="noopener" href="https://github.com/envoyproxy/envoy/blob/8f4d759cb53493159bcba921d6109eace48cb6da/source/extensions/filters/http/ext_authz/ext_authz.cc#L164">https://github.com/</a><a target="_blank" rel="noopener" href="https://github.com/yuval-k/envoy">yuval-k</a><a target="_blank" rel="noopener" href="https://github.com/envoyproxy/envoy/blob/8f4d759cb53493159bcba921d6109eace48cb6da/source/extensions/filters/http/ext_authz/ext_authz.cc#L164">&#x2F;envoy&#x2F;blob&#x2F;8f4d759cb53493159bcba921d6109eace48cb6da&#x2F;source&#x2F;extensions&#x2F;filters&#x2F;http&#x2F;ext_authz&#x2F;ext_authz.cc#L164</a> 更改 setCopy 为 addCopy</li>
+</ol>
+<h3 id="2-2-更改-envoy-代码"><a href="#2-2-更改-envoy-代码" class="headerlink" title="2.2 更改 envoy 代码"></a>2.2 更改 envoy 代码</h3><p>通过更改 envoy 代码可以形成下面的 patch</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">diff --git a/source/extensions/filters/http/ext_authz/ext_authz.cc b/source/extensions/filters/http/ext_authz/ext_authz.cc</span><br><span class="line">index d6eede1..bb10544 100644</span><br><span class="line">--- a/source/extensions/filters/http/ext_authz/ext_authz.cc</span><br><span class="line">+++ b/source/extensions/filters/http/ext_authz/ext_authz.cc</span><br><span class="line">@@ -179,7 +179,7 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&amp;&amp; response) &#123;</span><br><span class="line">     ENVOY_STREAM_LOG(trace, &quot;ext_authz filter added header(s) to the request:&quot;, *callbacks_);</span><br><span class="line">     for (const auto&amp; header : response-&gt;headers_to_set) &#123;</span><br><span class="line">       ENVOY_STREAM_LOG(trace, &quot;&#x27;&#123;&#125;&#x27;:&#x27;&#123;&#125;&#x27;&quot;, *callbacks_, header.first.get(), header.second);</span><br><span class="line">-      request_headers_-&gt;setCopy(header.first, header.second);</span><br><span class="line">+      request_headers_-&gt;addCopy(header.first, header.second);</span><br><span class="line">     &#125;</span><br><span class="line">     for (const auto&amp; header : response-&gt;headers_to_add) &#123;</span><br><span class="line">       ENVOY_STREAM_LOG(trace, &quot;&#x27;&#123;&#125;&#x27;:&#x27;&#123;&#125;&#x27;&quot;, *callbacks_, header.first.get(), header.second)</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-改动并编译-envoy-gloo-代码"><a href="#2-3-改动并编译-envoy-gloo-代码" class="headerlink" title="2.3 改动并编译 envoy-gloo 代码"></a>2.3 改动并编译 envoy-gloo 代码</h3><h4 id="2-3-1-改代码"><a href="#2-3-1-改代码" class="headerlink" title="2.3.1 改代码"></a>2.3.1 改代码</h4><p>**把上面的 patch 放到 <code>bazel/external/envoy.patch</code>**，然后需要更改的代码如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl</span><br><span class="line">index 4128f75..129d716 100644</span><br><span class="line">--- a/bazel/repositories.bzl</span><br><span class="line">+++ b/bazel/repositories.bzl</span><br><span class="line">@@ -28,6 +28,10 @@ def _repository_impl(name, **kwargs):</span><br><span class="line">             (location[&quot;tag&quot;], name),</span><br><span class="line">         )</span><br><span class="line"> </span><br><span class="line">+    if &quot;patches&quot; in location:</span><br><span class="line">+        kwargs[&quot;patches&quot;] = location[&quot;patches&quot;]</span><br><span class="line">+        kwargs[&quot;patch_args&quot;] = [&quot;-p1&quot;]</span><br><span class="line">+</span><br><span class="line">     if &quot;commit&quot; in location:</span><br><span class="line">         # Git repository at given commit ID. Add a BUILD file if requested.</span><br><span class="line">         if &quot;build_file&quot; in kwargs:</span><br><span class="line">diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl</span><br><span class="line">index 6a6509b..99a7801 100644</span><br><span class="line">--- a/bazel/repository_locations.bzl</span><br><span class="line">+++ b/bazel/repository_locations.bzl</span><br><span class="line">@@ -3,6 +3,7 @@ REPOSITORY_LOCATIONS = dict(</span><br><span class="line">     envoy = dict(</span><br><span class="line">         commit = &quot;51faa5a74f8e19d914078a02acd7b19565b583e8&quot;,</span><br><span class="line">         remote = &quot;https://github.com/yuval-k/envoy&quot;,</span><br><span class="line">+        patches = [&quot;//bazel/external:envoy.patch&quot;],</span><br><span class="line">     ),</span><br><span class="line">     inja = dict(</span><br><span class="line">         commit = &quot;4c0ee3a46c0bbb279b0849e5a659e52684a37a98&quot;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-3-2-编译"><a href="#2-3-2-编译" class="headerlink" title="2.3.2 编译"></a>2.3.2 编译</h4><p>建议在镜像中做编译。查看 <a target="_blank" rel="noopener" href="https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/cloudbuild.yaml#L2">https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/cloudbuild.yaml#L2</a> 可以看到使用的镜像为 <code>envoyproxy/envoy-build-ubuntu:e7ea4e81bbd5028abb9d3a2f2c0afe063d9b62c0-amd64</code>，然后执行</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">git clone https://github.com/solo-io/envoy-gloo &amp;&amp; cd envoy-gloo</span><br><span class="line">git checkout v1.16.0-rc4</span><br><span class="line">docker run --rm -it -v $PWD:/src -w /src \</span><br><span class="line">  envoyproxy/envoy-build-ubuntu:e7ea4e81bbd5028abb9d3a2f2c0afe063d9b62c0-amd64 ./ci/do_ci.sh bazel.release</span><br></pre></td></tr></table></figure>
+
+<p>即可以开始编译。注意最好在 Linux 下编译，建议内存为 16Gi。</p>
+<p>编译完毕之后，参考 <a target="_blank" rel="noopener" href="https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/cloudbuild.yaml#L12">https://github.com/solo-io/envoy-gloo/blob/v1.16.0-rc4/cloudbuild.yaml#L12</a> 的命令得知 linux&#x2F;amd64&#x2F;build_release_stripped&#x2F;envoy 是实际使用的二进制包，利用下述命令打镜像</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cp -f linux/amd64/build_release_stripped/envoy ci/envoy.stripped</span><br><span class="line">TAGGED_VERSION=v1.16.0-rc4-patch make docker-release</span><br></pre></td></tr></table></figure>
+
+<p>如果 docker build 太慢，可以考虑把 ci&#x2F;Dockerfile 改为下述的形式，其中 1.16.0-rc4 根据版本来选择</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> quay.io/solo-io/envoy-gloo:<span class="number">1.16</span>.<span class="number">0</span>-rc4</span><br><span class="line"><span class="keyword">ADD</span><span class="language-bash"> envoy.stripped /usr/local/bin/envoy</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到打了 <code>quay.io/solo-io/envoy-gloo:1.16.0-rc4-patch</code> 镜像，注意这里会自动执行 push 操作，其实是 push 不上去的，可以忽略 push 的报错。</p>
+<h3 id="2-4-打-gloo-envoy-wrapper-镜像"><a href="#2-4-打-gloo-envoy-wrapper-镜像" class="headerlink" title="2.4 打 gloo-envoy-wrapper 镜像"></a>2.4 打 gloo-envoy-wrapper 镜像</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">git clone https://github.com/solo-io/gloo &amp;&amp; cd gloo</span><br><span class="line">git checkout v1.5.5</span><br><span class="line">ENVOY_GLOO_IMAGE=quay.io/solo-io/envoy-gloo:1.16.0-rc4-patch make gloo-envoy-wrapper-docker</span><br><span class="line">docker tag quay.io/solo-io/gloo-envoy-wrapper:1.5.5 quay.io/solo-io/gloo-envoy-wrapper:1.5.5-patch</span><br></pre></td></tr></table></figure>
+
+<p>就可以得到 <code>quay.io/solo-io/gloo-envoy-wrapper:1.5.5-patch</code> 镜像了，这个镜像就可以用于启动 gateway-proxy 了。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>总的来说，本文主要目的没有讲述 gloo 的 PR 相关的工作，着重点讲述了 gloo gateway-proxy 镜像如何制作的，希望通过本文，让大家能了解到 gloo 和 envoy 直接的一些联系，以及 gloo 是如何在 envoy 上做了一些插件和编译操作。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/gateway/" rel="tag"># gateway</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/04/25/%E6%B5%85%E8%B0%88-bazel-%E5%BC%80%E5%8F%91-go-project-%E7%9A%84%E4%BC%98%E5%8A%A3/" rel="prev" title="浅谈 bazel 开发大型 go project 的优劣">
+      <i class="fa fa-chevron-left"></i> 浅谈 bazel 开发大型 go project 的优劣
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/01/11/MacOS-SSH-Linux-Chinese-Locale/" rel="next" title="记一次 MacOS SSH Linux 之后出现中文乱码">
+      记一次 MacOS SSH Linux 之后出现中文乱码 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">2.</span> <span class="nav-text">解决方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-PR"><span class="nav-number">2.1.</span> <span class="nav-text">1. PR</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%BD%8E%E7%89%88%E6%9C%AC%E6%89%93-patch"><span class="nav-number">2.2.</span> <span class="nav-text">2. 低版本打 patch</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%BE%AA%E7%BA%BF%E8%BF%BD%E8%B8%AA"><span class="nav-number">2.2.1.</span> <span class="nav-text">2.1 循线追踪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%9B%B4%E6%94%B9-envoy-%E4%BB%A3%E7%A0%81"><span class="nav-number">2.2.2.</span> <span class="nav-text">2.2 更改 envoy 代码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E6%94%B9%E5%8A%A8%E5%B9%B6%E7%BC%96%E8%AF%91-envoy-gloo-%E4%BB%A3%E7%A0%81"><span class="nav-number">2.2.3.</span> <span class="nav-text">2.3 改动并编译 envoy-gloo 代码</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-1-%E6%94%B9%E4%BB%A3%E7%A0%81"><span class="nav-number">2.2.3.1.</span> <span class="nav-text">2.3.1 改代码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-2-%E7%BC%96%E8%AF%91"><span class="nav-number">2.2.3.2.</span> <span class="nav-text">2.3.2 编译</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E6%89%93-gloo-envoy-wrapper-%E9%95%9C%E5%83%8F"><span class="nav-number">2.2.4.</span> <span class="nav-text">2.4 打 gloo-envoy-wrapper 镜像</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Weixiao Huang</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/weixiao-huang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;weixiao-huang" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Weixiao Huang</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v6.3.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+<style>
+.geDiagramContainer { width: 100% !important; }
+</style>
+</body>
+
+</html>
